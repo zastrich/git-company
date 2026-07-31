@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Activity, Play, Square, RefreshCcw } from "lucide-react";
-
 import { use } from "react";
 
 export default function SchedulerClient({ params }: { params: Promise<{ companySlug: string }> }) {
@@ -11,22 +10,24 @@ export default function SchedulerClient({ params }: { params: Promise<{ companyS
   const [pid, setPid] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/scheduler/${companySlug}`);
-      const data = await res.json();
-      setStatus(data.status);
-      setPid(data.pid);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [companySlug]);
-
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, [fetchStatus]);
+    let active = true;
+    async function poll() {
+      try {
+        const res = await fetch(`/api/scheduler/${companySlug}`);
+        const data = await res.json();
+        if (active) {
+          setStatus(data.status);
+          setPid(data.pid);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => { active = false; clearInterval(interval); };
+  }, [companySlug]);
 
   const handleAction = async (action: "start" | "stop") => {
     setIsLoading(true);
@@ -36,7 +37,11 @@ export default function SchedulerClient({ params }: { params: Promise<{ companyS
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      await fetchStatus();
+      // Refresh status after action
+      const res = await fetch(`/api/scheduler/${companySlug}`);
+      const data = await res.json();
+      setStatus(data.status);
+      setPid(data.pid);
     } catch (err) {
       console.error(err);
     } finally {
@@ -69,7 +74,12 @@ export default function SchedulerClient({ params }: { params: Promise<{ companyS
           </div>
           
           <button 
-            onClick={fetchStatus}
+            onClick={async () => {
+              const res = await fetch(`/api/scheduler/${companySlug}`);
+              const data = await res.json();
+              setStatus(data.status);
+              setPid(data.pid);
+            }}
             className="p-2 text-zinc-500 hover:text-white transition-colors"
             title="Atualizar"
           >
