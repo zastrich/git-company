@@ -11,6 +11,9 @@ on:
       - 'prisma/**'
       - 'package.json'
       - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'vitest.config.ts'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
@@ -21,6 +24,9 @@ on:
       - 'prisma/**'
       - 'package.json'
       - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'vitest.config.ts'
+      - '.github/workflows/ci.yml'
 
 jobs:
   ci:
