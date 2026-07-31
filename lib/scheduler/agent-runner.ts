@@ -18,11 +18,17 @@ export interface AgentRunResult {
 
 /**
  * Converte um AgentConfig do banco + AIProvider em um AgentDefinition compatível com o orchestrator.
+ * Retorna null para human agents (não executáveis por LLM).
  */
 export function toAgentDefinition(
-  agentConfig: AgentConfig & { provider: AIProvider },
+  agentConfig: AgentConfig & { provider: AIProvider | null },
   secrets: Map<string, string>
-): AgentDefinition {
+): AgentDefinition | null {
+  // Human agents não rodam via LLM
+  if (agentConfig.type === "human" || !agentConfig.provider) {
+    return null;
+  }
+
   // Resolver a API key do provider via secrets
   const providerKeyMap: Record<string, string> = {
     openai: "OPENAI_API_KEY",
@@ -83,14 +89,20 @@ export async function loadBusinessConfig(
 
 /**
  * Executa um único agente — carrega config do banco, busca secrets, roda o ciclo.
+ * Retorna resultado vazio para human agents (não executáveis).
  */
 export async function executeAgentTick(
-  agentConfig: AgentConfig & { provider: AIProvider },
+  agentConfig: AgentConfig & { provider: AIProvider | null },
   companyId: string,
   token: string,
   owner: string,
   repo: string
 ): Promise<AgentRunResult> {
+  // Human agents não rodam via LLM
+  if (agentConfig.type === "human" || !agentConfig.provider) {
+    return { agentId: agentConfig.agentId, processed: 0, blocked: 0, errors: 0 };
+  }
+
   const secrets = await prisma.companySecret.findMany({
     where: { companyId },
     select: { key: true, value: true },
@@ -98,6 +110,9 @@ export async function executeAgentTick(
   const secretsMap = new Map(secrets.map((s) => [s.key, s.value]));
 
   const agentDef = toAgentDefinition(agentConfig, secretsMap);
+  if (!agentDef) {
+    return { agentId: agentConfig.agentId, processed: 0, blocked: 0, errors: 0 };
+  }
 
   // Carregar business.json para ter context do orchestrator
   let businessConfig: BusinessConfig;

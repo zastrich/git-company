@@ -62,11 +62,12 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
   const agentDefs = agents.map((a) => ({
     agentId: a.agentId,
     role: a.role,
-    llm: {
-      provider: a.provider.type as any,
+    type: (a.type ?? "ai") as "ai" | "human",
+    llm: a.type === "human" ? { provider: "openai" as const, model: "" } : {
+      provider: (a.provider?.type ?? "openai") as any,
       model: a.model,
-      apiKey: `{{${a.provider.type.toUpperCase()}_API_KEY}}`,
-      baseUrl: a.provider.baseUrl ?? undefined,
+      apiKey: a.provider ? `{{${a.provider.type.toUpperCase()}_API_KEY}}` : undefined,
+      baseUrl: a.provider?.baseUrl ?? undefined,
       temperature: a.temperature,
       maxTokens: a.maxTokens,
     },
@@ -74,6 +75,7 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
     tickIntervalSeconds: a.tickIntervalSeconds,
     labels: a.labels.split(",").map((l) => l.trim()).filter(Boolean),
     subordinates: a.subordinates.split(",").map((s) => s.trim()).filter(Boolean),
+    githubUsername: a.githubUsername || undefined,
   }));
 
   // Construir orgChart
@@ -83,10 +85,12 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
       ? {
           agentId: ceoAgent.agentId,
           role: ceoAgent.role,
+          type: (ceoAgent.type ?? "ai") as "ai" | "human",
           context: ceoAgent.context,
           subordinates: ceoAgent.subordinates.split(",").filter(Boolean),
+          githubUsername: ceoAgent.githubUsername || undefined,
         }
-      : { agentId: "", role: "", context: "", subordinates: [] as string[] },
+      : { agentId: "", role: "", type: "ai" as const, context: "", subordinates: [] as string[] },
     departments: {} as Record<string, any>,
   };
 
@@ -107,8 +111,29 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
     infrastructure: {
       labels: [],
       milestones: [],
-      project: { title: `${company.name} — Board`, views: [] },
+      project: {
+        title: `${company.name} — Board`,
+        views: [
+          { name: "Kanban", layout: "BOARD" as const },
+          { name: "Roadmap", layout: "ROADMAP" as const },
+          { name: "Backlog", layout: "TABLE" as const },
+        ],
+        columns: [
+          { name: "Backlog", description: "Issues aguardando priorização" },
+          { name: "Em Progresso", description: "Issues sendo trabalhadas por agentes AI" },
+          { name: "Revisão", description: "Aguardando revisão humana ou validação" },
+          { name: "Ação Manual", description: "Requer ação de um membro humano", isManualAction: true },
+          { name: "Concluído", description: "Tarefas finalizadas", isDone: true },
+        ],
+      },
       workflows: [],
+      issueLifecycle: {
+        completionPatterns: ["[TAREFA_CONCLUÍDA]", "[TAREFA_CONCLUIDA]", "[TASK_COMPLETED]"],
+        completionColumn: "Concluído",
+        autoClose: true,
+        defaultColumn: "Backlog",
+        manualActionColumn: "Ação Manual",
+      },
     },
     orgChart,
     repos: repoRefs.length > 0 ? repoRefs : undefined,
