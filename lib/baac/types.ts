@@ -96,6 +96,17 @@ export interface Infrastructure {
 }
 
 // ─────────────────────────────────────────────
+// Company Repository Reference
+// ─────────────────────────────────────────────
+
+export interface RepoReference {
+  shortId: string;
+  fullName: string;
+  label: string;
+  description?: string;
+}
+
+// ─────────────────────────────────────────────
 // Business Configuration (business.json root)
 // ─────────────────────────────────────────────
 
@@ -108,6 +119,8 @@ export interface BusinessConfig {
   infrastructure: Infrastructure;
   /** Org chart hierárquico (opcional, para visualização) */
   orgChart?: OrgChart;
+  /** Repositórios gerenciados pela empresa */
+  repos?: RepoReference[];
 }
 
 // ─────────────────────────────────────────────

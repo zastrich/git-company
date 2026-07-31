@@ -90,6 +90,15 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
     departments: {} as Record<string, any>,
   };
 
+  // Incluir repos registrados
+  const repos = await prisma.companyRepo.findMany({ where: { companyId }, orderBy: { createdAt: "asc" } });
+  const repoRefs = repos.map((r) => ({
+    shortId: r.shortId,
+    fullName: r.fullName,
+    label: `repo:${r.shortId}`,
+    description: r.description || undefined,
+  }));
+
   return {
     companyName: company.name,
     mission: company.mission,
@@ -102,6 +111,7 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
       workflows: [],
     },
     orgChart,
+    repos: repoRefs.length > 0 ? repoRefs : undefined,
   };
 }
 
