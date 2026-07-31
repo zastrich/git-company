@@ -7,7 +7,7 @@ import { runAgentCycle } from "../agents/orchestrator";
 import { prisma } from "../db/client";
 import { applySecrets } from "../db/secrets";
 import { BusinessConfig } from "../baac/types";
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 
 export interface AgentRunResult {
   agentId: string;

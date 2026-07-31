@@ -1,5 +1,5 @@
 // lib/agents/task-queue.ts
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 import { AgentDefinition, IssueContext } from "../baac/types";
 import { GitHubGraphQLClient } from "../github/graphql";
 
@@ -42,15 +42,24 @@ export async function getAvailableTasksForAgent(
     return [];
   }
 
-  // Buscar Issues com ANY das labels do agente
-  const labelQuery = agentDef.labels.join(",");
-  const { data: rawIssues } = await octokit.rest.issues.listForRepo({
-    owner,
-    repo,
-    state: "open",
-    labels: labelQuery,
-    per_page: 50,
-  });
+  // Buscar Issues com ANY das labels do agente (uma query por label, depois deduplica)
+  const issueMap = new Map<number, any>();
+  for (const label of agentDef.labels) {
+    const { data: rawIssues } = await octokit.rest.issues.listForRepo({
+      owner,
+      repo,
+      state: "open",
+      labels: label,
+      per_page: 50,
+    });
+    for (const issue of rawIssues) {
+      if (!issueMap.has(issue.number)) {
+        issueMap.set(issue.number, issue);
+      }
+    }
+  }
+
+  const rawIssues = Array.from(issueMap.values());
 
   const tasks: QueuedTask[] = [];
 

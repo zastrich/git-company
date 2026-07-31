@@ -4,7 +4,7 @@
 // - pull: download business.json from repo → update local DB
 
 import { prisma } from "../db/client";
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 import { BusinessConfig } from "../baac/types";
 import { createAuditLog } from "../db/audit";
 

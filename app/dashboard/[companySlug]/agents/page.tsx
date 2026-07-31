@@ -1,6 +1,6 @@
 import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 import { BusinessConfig } from "../../../../lib/baac/types";
 import { Bot, BrainCircuit, RefreshCw } from "lucide-react";
 
