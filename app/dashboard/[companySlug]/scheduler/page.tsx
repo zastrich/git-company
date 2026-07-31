@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Activity, Play, Square, RefreshCcw } from "lucide-react";
-
 import { use } from "react";
 
 export default function SchedulerClient({ params }: { params: Promise<{ companySlug: string }> }) {
@@ -11,7 +10,7 @@ export default function SchedulerClient({ params }: { params: Promise<{ companyS
   const [pid, setPid] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchStatus = async () => {
+  async function fetchStatus() {
     try {
       const res = await fetch(`/api/scheduler/${companySlug}`);
       const data = await res.json();
@@ -20,12 +19,13 @@ export default function SchedulerClient({ params }: { params: Promise<{ companyS
     } catch (err) {
       console.error(err);
     }
-  };
+  }
 
   useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companySlug]);
 
   const handleAction = async (action: "start" | "stop") => {

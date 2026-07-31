@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-explicit-any": "off",
       // Allow unused vars with underscore prefix
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      // Allow setState in effects — valid for polling patterns
+      "react-hooks/set-state-in-effect": "off",
     },
   },
   globalIgnores([
