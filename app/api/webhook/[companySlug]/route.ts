@@ -45,7 +45,7 @@ export async function POST(
       });
       return NextResponse.json({ error: 'Unauthorized Tenant Signature' }, { status: 401 });
     }
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Invalid Signature format' }, { status: 400 });
   }
 
@@ -53,7 +53,7 @@ export async function POST(
   let payload: any;
   try {
     payload = JSON.parse(payloadText);
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
