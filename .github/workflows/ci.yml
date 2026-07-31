@@ -1,0 +1,60 @@
+name: CI — Lint, Type Check & Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'app/**'
+      - 'cli/**'
+      - 'scheduler/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'tsconfig.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'app/**'
+      - 'cli/**'
+      - 'scheduler/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'tsconfig.json'
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npx tsc --noEmit
+
+      - name: Run Tests
+        run: npm run test
+
+      - name: Upload Coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7

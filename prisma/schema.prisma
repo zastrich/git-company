@@ -1,0 +1,155 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./main.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─────────────────────────────────────────────
+// Company (Tenant principal)
+// ─────────────────────────────────────────────
+
+model Company {
+  id            String             @id @default(uuid())
+  name          String
+  slug          String             @unique
+  repoPrefix    String             @default("")   // Prefixo para repos criados (ex: "comp-")
+  githubOwner   String             @default("")   // owner/org do repositório no GitHub
+  githubToken   String
+  webhookSecret String
+  repoName      String                            // Repo do organograma (ex: "comp-org")
+  projectId     String?                           // ID do GitHub Project v2
+  mission       String             @default("")   // Missão da empresa
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  logs          AuditLog[]
+  secrets       CompanySecret[]
+  schedulers    SchedulerProcess[]
+  agents        AgentConfig[]
+  chatMessages  ChatMessage[]
+  configs       CompanyConfig[]
+}
+
+// ─────────────────────────────────────────────
+// AI Providers (catálogo global)
+// ─────────────────────────────────────────────
+
+model AIProvider {
+  id        String   @id @default(uuid())
+  name      String                         // Ex: "OpenAI", "Claude", "Gemini"
+  slug      String   @unique               // Ex: "openai", "anthropic", "gemini"
+  type      String                         // "openai" | "anthropic" | "gemini" | "bedrock" | "moonshot" | "ollama" | "groq"
+  baseUrl   String?                        // URL base (para Ollama, Moonshot, etc.)
+  isLocal   Boolean  @default(false)       // true para Ollama
+  createdAt DateTime @default(now())
+
+  agents    AgentConfig[]
+}
+
+// ─────────────────────────────────────────────
+// Agent Config (configuração persistente de agentes)
+// ─────────────────────────────────────────────
+
+model AgentConfig {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  agentId             String                         // ID lógico do agente (ex: "ceo", "dev-agent")
+  role                String                         // Papel do agente (ex: "CEO", "Backend Developer")
+  context             String                         // System prompt / escopo operacional
+  providerId          String
+  provider            AIProvider @relation(fields: [providerId], references: [id])
+  model               String                         // Modelo LLM (ex: "gpt-4o", "claude-3-sonnet")
+  temperature         Float    @default(0.2)
+  maxTokens           Int      @default(4096)
+  tickIntervalSeconds Int      @default(300)         // Mínimo 300s (5 min)
+  labels              String   @default("")          // Labels separadas por vírgula
+  subordinates        String   @default("")          // IDs de subordinados separados por vírgula
+  isPaused            Boolean  @default(false)       // Paused = scheduler ignora
+  isCeo               Boolean  @default(false)       // Marca o CEO da empresa
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  chatMessages        ChatMessage[]
+
+  @@unique([companyId, agentId])
+}
+
+// ─────────────────────────────────────────────
+// Chat Messages (histórico de interação com agentes)
+// ─────────────────────────────────────────────
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  agentId   String                         // FK lógica para AgentConfig.agentId
+  agent     AgentConfig @relation(fields: [agentConfigId], references: [id], onDelete: Cascade)
+  agentConfigId String
+  role      String                         // "user" | "assistant" | "system"
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// Company Config (configurações gerais key-value)
+// ─────────────────────────────────────────────
+
+model CompanyConfig {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String                         // Ex: "sync_direction", "auto_push_orgchart"
+  value     String                         // Valor da configuração
+
+  @@unique([companyId, key])
+}
+
+// ─────────────────────────────────────────────
+// Company Secret (chaves de API e tokens)
+// ─────────────────────────────────────────────
+
+model CompanySecret {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  key       String                         // Ex: "OPENAI_API_KEY"
+  value     String                         // Valor real — NUNCA exposto em logs
+
+  @@unique([companyId, key])
+}
+
+// ─────────────────────────────────────────────
+// Scheduler Process (controle de processo do scheduler)
+// ─────────────────────────────────────────────
+
+model SchedulerProcess {
+  id        String    @id @default(uuid())
+  companyId String
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pid       Int?
+  status    String    @default("STOPPED")  // RUNNING | STOPPED | ERROR
+  startedAt DateTime?
+  stoppedAt DateTime?
+  updatedAt DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Audit Log (registro de ações)
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  agentId   String   @default("")
+  agentName String
+  action    String
+  details   String
+  createdAt DateTime @default(now())
+}
