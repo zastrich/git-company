@@ -5,13 +5,20 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Override default ignores of eslint-config-next.
+  {
+    rules: {
+      // Allow `any` in lib/ code that deals with dynamic GitHub API responses
+      "@typescript-eslint/no-explicit-any": "off",
+      // Allow unused vars with underscore prefix
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "lib/__tests__/**",
   ]),
 ]);
 
