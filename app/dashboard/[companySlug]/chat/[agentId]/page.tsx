@@ -29,14 +29,6 @@ export default function ChatPage({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    fetchHistory();
-  }, [companySlug, agentId, contextWindow]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   const fetchHistory = async () => {
     try {
       const res = await fetch(
@@ -50,6 +42,16 @@ export default function ChatPage({
       console.error("Erro ao carregar histórico:", err);
     }
   };
+
+  useEffect(() => {
+    fetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companySlug, agentId, contextWindow]);
+
+  useEffect(() => {
+    scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
