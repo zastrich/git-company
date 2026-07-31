@@ -50,7 +50,6 @@ export default function ChatPage({
 
   useEffect(() => {
     scrollToBottom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   const handleSend = async () => {
@@ -98,7 +97,7 @@ export default function ChatPage({
           },
         ]);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {

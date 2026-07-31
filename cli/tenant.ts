@@ -116,7 +116,7 @@ async function companyCreate(flags: Record<string, string | boolean>) {
   const repoName = `${prefix}org`;
 
   // 1. Criar no banco local
-  const company = await prisma.company.create({
+  await prisma.company.create({
     data: {
       name,
       slug,

@@ -1,6 +1,6 @@
 import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
-import { TerminalSquare, ShieldAlert, CheckCircle2, Info } from "lucide-react";
+import { TerminalSquare, ShieldAlert, Info } from "lucide-react";
 
 export default async function LogsPage(props: {
   params: Promise<{ companySlug: string }>;
