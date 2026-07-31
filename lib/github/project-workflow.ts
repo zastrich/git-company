@@ -104,49 +104,32 @@ export async function setupProjectWorkflow(
 
     const columnOptions: { id: string; name: string }[] = statusField?.options ?? [];
 
-    // 5. Add missing column options to the Status field
+    // 5. Map our custom columns to existing GitHub status options
+    // GitHub Projects V2 doesn't expose a mutation to add options to single-select fields.
+    // We map our workflow columns to the available status options.
+    const columnMapping: Record<string, string> = {};
     if (statusField) {
-      const existingNames = new Set(columnOptions.map((o: any) => o.name));
+      const existingOptions = statusField.options.map((o: any) => o.name);
       for (const col of config.columns) {
-        if (!existingNames.has(col.name)) {
-          try {
-            await gql(`
-              mutation($projectId: ID!, $fieldId: ID!, $name: String!) {
-                updateProjectV2Field(input: {
-                  projectId: $projectId
-                  fieldId: $fieldId
-                  singleSelectField: { options: [{ name: $name }] }
-                }) {
-                  projectV2Field { ... on ProjectV2SingleSelectField { options { id name } } }
-                }
-              }
-            `, { projectId, fieldId: statusField.id, name: col.name });
-            console.log(`   ✅ Coluna "${col.name}" adicionada ao Status.`);
-          } catch (err: any) {
-            console.warn(`   ⚠️  Coluna "${col.name}": ${err.message}`);
-          }
+        // Try exact match first
+        const exactMatch = existingOptions.find((o: string) => o === col.name);
+        if (exactMatch) {
+          columnMapping[col.name] = exactMatch;
+          continue;
+        }
+        // Fuzzy mapping for common columns
+        if (col.isDone && existingOptions.includes("Done")) {
+          columnMapping[col.name] = "Done";
+        } else if (col.name.toLowerCase().includes("progress") && existingOptions.includes("In Progress")) {
+          columnMapping[col.name] = "In Progress";
+        } else if (col.name.toLowerCase().includes("backlog") && existingOptions.includes("Todo")) {
+          columnMapping[col.name] = "Todo";
+        } else {
+          // Default: map to Todo for unmatched columns
+          columnMapping[col.name] = existingOptions[0] ?? "Todo";
         }
       }
-
-      // Re-fetch to get option IDs
-      const refreshed: any = await gql(`
-        query($projectId: ID!) {
-          node(id: $projectId) {
-            ... on ProjectV2 {
-              fields(first: 20) {
-                nodes {
-                  ... on ProjectV2SingleSelectField {
-                    id name options { id name }
-                  }
-                }
-              }
-            }
-          }
-        }
-      `, { projectId });
-      statusField = refreshed.node.fields.nodes.find(
-        (f: any) => f.name === "Status" && f.options
-      );
+      console.log(`   ℹ️  Column mapping: ${JSON.stringify(columnMapping)}`);
     }
 
     await createAuditLog({

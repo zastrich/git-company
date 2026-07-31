@@ -115,6 +115,19 @@ async function companyCreate(flags: Record<string, string | boolean>) {
   const webhookSecret = crypto.randomUUID();
   const repoName = `${prefix}org`;
 
+  // 0. Validar token antes de qualquer operação
+  const { validateToken } = await import("../lib/github/token-validator");
+  const validation = await validateToken(token);
+  if (!validation.valid) {
+    console.error(`\n❌ Token inválido ou com permissões insuficientes:\n`);
+    console.error(validation.message);
+    process.exit(1);
+  }
+  console.log(`✅ Token validado para @${validation.login}`);
+  if (validation.missingRecommended.length > 0) {
+    console.log(`   ⚠️  Scopes recomendados ausentes: ${validation.missingRecommended.join(", ")}`);
+  }
+
   // 1. Criar no banco local
   await prisma.company.create({
     data: {
