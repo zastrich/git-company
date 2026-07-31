@@ -50,6 +50,24 @@ npm test
 npm run dev
 ```
 
+## Token GitHub
+
+O token deve ter os seguintes scopes (verificado automaticamente no `company:create`):
+
+| Scope | Obrigatório | Uso |
+|-------|-------------|-----|
+| `repo` | Sim | Criar repos, issues, commits, webhooks |
+| `project` | Sim | Criar/gerenciar GitHub Projects V2 |
+| `read:org` | Sim | Ler informações de organização |
+| `workflow` | Recomendado | Gerenciar GitHub Actions workflows |
+
+Para criar um token: https://github.com/settings/tokens/new
+
+Ou via CLI:
+```bash
+gh auth refresh -s repo,project,read:org,workflow
+```
+
 ## CLI
 
 ```bash
