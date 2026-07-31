@@ -46,8 +46,8 @@ export async function runAgentCycle(
   owner: string,
   repo: string
 ): Promise<OrchestratorRunResult> {
-  const { Octokit } = await import("octokit");
-  const octokit = new (Octokit as any)({ auth: token });
+  const { Octokit } = await import("@octokit/rest");
+  const octokit = new Octokit({ auth: token });
 
   const tasks: QueuedTask[] = await getAvailableTasksForAgent(
     agentDef,

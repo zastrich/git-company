@@ -1,4 +1,4 @@
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 import { Label, Milestone, Workflow } from "../baac/types";
 
 export class GitHubRestClient {

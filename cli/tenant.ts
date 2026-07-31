@@ -135,7 +135,7 @@ async function companyCreate(flags: Record<string, string | boolean>) {
   console.log(`   Repo:       ${owner}/${repoName}`);
 
   // 2. Criar repositório no GitHub
-  const { Octokit } = await import("octokit");
+  const { Octokit } = await import("@octokit/rest");
   const octokit = new Octokit({ auth: token });
 
   try {
@@ -228,7 +228,7 @@ async function companySync(flags: Record<string, string | boolean>) {
   const company = await prisma.company.findUnique({ where: { slug: companySlug } });
   if (!company) { console.error("Empresa não encontrada."); process.exit(1); }
 
-  const { Octokit } = await import("octokit");
+  const { Octokit } = await import("@octokit/rest");
   const octokit = new Octokit({ auth: company.githubToken });
 
   if (direction === "pull") {
