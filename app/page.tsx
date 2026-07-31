@@ -1,4 +1,4 @@
-import { prisma } from "../../lib/db/client";
+import { prisma } from "../lib/db/client";
 import Link from "next/link";
 import { Building2, ChevronRight, Activity, CalendarDays } from "lucide-react";
 
