@@ -2,7 +2,7 @@ import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
 import { Octokit } from "octokit";
 import { BusinessConfig } from "../../../../lib/baac/types";
-import { Bot, Network, Workflow, BrainCircuit, RefreshCw } from "lucide-react";
+import { Bot, BrainCircuit, RefreshCw } from "lucide-react";
 
 export default async function AgentsPage(props: {
   params: Promise<{ companySlug: string }>;
