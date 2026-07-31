@@ -23,6 +23,7 @@
 
 import { prisma } from "../lib/db/client";
 import { upsertSecret } from "../lib/db/secrets";
+import { registerRepo, listRepos, syncRepoLabels } from "../lib/repos/repo-service";
 import path from "path";
 
 // ─────────────────────────────────────────────
@@ -550,6 +551,63 @@ async function secretList(flags: Record<string, string | boolean>) {
 }
 
 // ─────────────────────────────────────────────
+// Repo Commands
+// ─────────────────────────────────────────────
+
+async function repoRegister(flags: Record<string, string | boolean>) {
+  const companySlug = flag(flags, "company");
+  const shortId = flag(flags, "shortId");
+  const description = optFlag(flags, "description", "");
+  const createOnGitHub = flags["create"] === true;
+  const fullNameOverride = optFlag(flags, "fullName") || undefined;
+
+  const company = await prisma.company.findUnique({ where: { slug: companySlug } });
+  if (!company) { console.error("Empresa não encontrada."); process.exit(1); }
+
+  const result = await registerRepo({
+    companyId: company.id,
+    shortId,
+    fullName: fullNameOverride,
+    description,
+    createOnGitHub,
+  });
+
+  console.log(`✅ Repo registrado!`);
+  console.log(`   Short ID:  ${result.shortId}`);
+  console.log(`   Full Name: ${result.fullName}`);
+  console.log(`   Label:     ${result.label}`);
+  if (createOnGitHub) console.log(`   GitHub:    ${company.githubOwner}/${result.fullName}`);
+}
+
+async function repoList(flags: Record<string, string | boolean>) {
+  const companySlug = flag(flags, "company");
+
+  const company = await prisma.company.findUnique({ where: { slug: companySlug } });
+  if (!company) { console.error("Empresa não encontrada."); process.exit(1); }
+
+  const repos = await listRepos(company.id);
+
+  if (repos.length === 0) { console.log("Nenhum repo registrado."); return; }
+
+  console.log(`Repos de "${company.name}" (prefix: ${company.repoPrefix}):\n`);
+  for (const r of repos) {
+    console.log(`  [${r.label}] ${company.githubOwner}/${r.fullName}`);
+    if (r.description) console.log(`       ${r.description}`);
+    console.log();
+  }
+}
+
+async function repoSync(flags: Record<string, string | boolean>) {
+  const companySlug = flag(flags, "company");
+
+  const company = await prisma.company.findUnique({ where: { slug: companySlug } });
+  if (!company) { console.error("Empresa não encontrada."); process.exit(1); }
+
+  await syncRepoLabels(company.id);
+  console.log(`✅ Labels de repo sincronizadas no repositório ${company.githubOwner}/${company.repoName}.`);
+}
+
+// ─────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────
 
@@ -563,6 +621,9 @@ async function main() {
     "company:sync": companySync,
     "provider:list": providerList,
     "provider:add": providerAdd,
+    "repo:register": repoRegister,
+    "repo:list": repoList,
+    "repo:sync": repoSync,
     "agent:add": agentAdd,
     "agent:pause": agentPause,
     "agent:resume": agentResume,
