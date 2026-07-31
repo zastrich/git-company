@@ -202,7 +202,7 @@ export class GitHubGraphQLClient {
           name: view.name,
           layout: view.layout,
         });
-      } catch (error) {
+      } catch {
         // Silently continue — view pode já existir
       }
     }
