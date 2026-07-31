@@ -19,42 +19,92 @@ export interface LLMConfig {
 }
 
 // ─────────────────────────────────────────────
-// Agent Definition
+// Agent / Member Definition
 // ─────────────────────────────────────────────
+
+export type MemberType = "ai" | "human";
 
 export interface AgentDefinition {
   agentId: string;
   role: string;
+  /** Tipo do membro: "ai" (agente LLM) ou "human" (pessoa real) */
+  type: MemberType;
+  /** Config de LLM — obrigatório para type="ai", ignorado para "human" */
   llm: LLMConfig;
   /** System prompt — escopo e limites do agente */
   context: string;
-  /** Intervalo entre ticks em segundos */
+  /** Intervalo entre ticks em segundos (apenas para type="ai") */
   tickIntervalSeconds: number;
-  /** Labels do GitHub que este agente processa */
+  /** Labels do GitHub que este membro processa */
   labels: string[];
-  /** IDs de agentes subordinados (para hierarquia) */
+  /** IDs de agentes/membros subordinados (para hierarquia) */
   subordinates?: string[];
+  /** GitHub username (para humans — usado em assignees) */
+  githubUsername?: string;
 }
 
 // ─────────────────────────────────────────────
-// Org Chart (legacy — mantido para compatibilidade)
+// Org Chart
 // ─────────────────────────────────────────────
 
-export interface AgentContext {
+export interface OrgMember {
   agentId: string;
   role: string;
+  type: MemberType;
   context: string;
   subordinates?: string[];
+  githubUsername?: string;
 }
 
 export interface Department {
-  leader: AgentContext;
-  collaborators: AgentContext[];
+  leader: OrgMember;
+  collaborators: OrgMember[];
 }
 
 export interface OrgChart {
-  ceo: AgentContext;
+  ceo: OrgMember;
   departments: Record<string, Department>;
+}
+
+// ─────────────────────────────────────────────
+// Project Workflow (GitHub Project V2 columns)
+// ─────────────────────────────────────────────
+
+export interface WorkflowColumn {
+  /** Nome da coluna no Project Board */
+  name: string;
+  /** Descrição do propósito da coluna */
+  description?: string;
+  /** Se esta coluna é para ações manuais (humanos) */
+  isManualAction?: boolean;
+  /** Se issues nesta coluna são consideradas "done" (auto-close) */
+  isDone?: boolean;
+}
+
+export interface ProjectWorkflow {
+  /** Título do GitHub Project V2 */
+  title: string;
+  /** Views do projeto (Board, Roadmap, Table) */
+  views: View[];
+  /** Colunas de status (fluxo de trabalho) */
+  columns: WorkflowColumn[];
+}
+
+// ─────────────────────────────────────────────
+// Issue Lifecycle Configuration
+// ─────────────────────────────────────────────
+
+export interface IssueLifecycle {
+  /** Padrões de texto que indicam conclusão (ex: "[TAREFA_CONCLUÍDA]") */
+  completionPatterns: string[];
+  /** Quando concluída, mover para qual coluna? */
+  completionColumn: string;
+  /** Auto-close a issue quando o padrão de conclusão é detectado? */
+  autoClose: boolean;
+  /** Coluna inicial ao criar uma issue */
+  defaultColumn: string;
+  /** Coluna para issues que requerem ação manual */
+  manualActionColumn: string;
 }
 
 // ─────────────────────────────────────────────
@@ -78,11 +128,6 @@ export interface View {
   layout: "BOARD" | "ROADMAP" | "TABLE";
 }
 
-export interface Project {
-  title: string;
-  views: View[];
-}
-
 export interface Workflow {
   file: string;
   content: string;
@@ -91,8 +136,11 @@ export interface Workflow {
 export interface Infrastructure {
   labels: Label[];
   milestones: Milestone[];
-  project: Project;
+  /** Config do projeto GitHub — agora com workflow de colunas */
+  project: ProjectWorkflow;
   workflows: Workflow[];
+  /** Config do ciclo de vida de issues */
+  issueLifecycle: IssueLifecycle;
 }
 
 // ─────────────────────────────────────────────
@@ -114,10 +162,10 @@ export interface BusinessConfig {
   companyName: string;
   mission?: string;
   version: string;
-  /** Lista flat de todos os agentes da empresa */
+  /** Lista flat de todos os membros da empresa (AI + humanos) */
   agents: AgentDefinition[];
   infrastructure: Infrastructure;
-  /** Org chart hierárquico (opcional, para visualização) */
+  /** Org chart hierárquico (com humanos e IAs) */
   orgChart?: OrgChart;
   /** Repositórios gerenciados pela empresa */
   repos?: RepoReference[];

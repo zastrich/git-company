@@ -98,6 +98,24 @@ export async function runAgentCycle(
         body: `> 🤖 **${agentDef.role}** (GitCompany-AI)\n\n${result.response}`,
       });
 
+      // Issue Lifecycle: detectar conclusão e auto-close
+      const completionPatterns = ["[TAREFA_CONCLUÍDA]", "[TAREFA_CONCLUIDA]", "[TASK_COMPLETED]"];
+      const isCompleted = completionPatterns.some((p) => result.response.includes(p));
+
+      if (isCompleted) {
+        // Auto-close the issue
+        await octokit.rest.issues.update({
+          owner,
+          repo,
+          issue_number: task.issue.number,
+          state: "closed",
+          state_reason: "completed",
+        });
+        console.log(
+          `[Orchestrator] Issue #${task.issue.number} fechada automaticamente (tarefa concluída).`
+        );
+      }
+
       processed++;
 
       // Registrar no AuditLog

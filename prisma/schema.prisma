@@ -62,10 +62,11 @@ model AgentConfig {
   company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   agentId             String                         // ID lógico do agente (ex: "ceo", "dev-agent")
   role                String                         // Papel do agente (ex: "CEO", "Backend Developer")
+  type                String   @default("ai")       // "ai" | "human"
   context             String                         // System prompt / escopo operacional
-  providerId          String
-  provider            AIProvider @relation(fields: [providerId], references: [id])
-  model               String                         // Modelo LLM (ex: "gpt-4o", "claude-3-sonnet")
+  providerId          String?                        // Nullable para humans
+  provider            AIProvider? @relation(fields: [providerId], references: [id])
+  model               String   @default("")          // Modelo LLM (ex: "gpt-4o", "claude-3-sonnet")
   temperature         Float    @default(0.2)
   maxTokens           Int      @default(4096)
   tickIntervalSeconds Int      @default(300)         // Mínimo 300s (5 min)
@@ -73,6 +74,7 @@ model AgentConfig {
   subordinates        String   @default("")          // IDs de subordinados separados por vírgula
   isPaused            Boolean  @default(false)       // Paused = scheduler ignora
   isCeo               Boolean  @default(false)       // Marca o CEO da empresa
+  githubUsername      String   @default("")          // GitHub username (para humans)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
