@@ -39,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -55,7 +55,9 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run Tests
-        run: npm run test
+        env:
+          VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
+        run: npm run test:coverage
 
       - name: Upload Coverage
         if: always()
@@ -64,3 +66,4 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+          if-no-files-found: ignore
