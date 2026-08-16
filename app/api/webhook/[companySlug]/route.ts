@@ -90,7 +90,7 @@ export async function POST(
         const { fetchRemoteBusinessJson } = await import('../../../../lib/sync/org-sync');
         const { content } = await fetchRemoteBusinessJson(company.githubToken, company.githubOwner, company.repoName);
         const diffEngine = new BaaCDiffEngine(company.githubToken, company.githubOwner, company.repoName);
-        await diffEngine.syncInfrastructure(content, company.projectId);
+        await diffEngine.syncInfrastructure(content, company.projectId ?? undefined);
       } catch (err: any) {
         console.error(`[Webhook] BaaC sync failed:`, err.message);
       }

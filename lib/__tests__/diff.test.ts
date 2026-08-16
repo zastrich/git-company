@@ -34,12 +34,12 @@ describe("BaaC Diff Engine", () => {
       infrastructure: {
         labels: [{ name: "bug", color: "d73a4a", description: "Something broken" }],
         milestones: [],
-        project: { title: "Test", views: [] },
+        project: { title: "Test", views: [], columns: [] },
         workflows: [],
       },
     };
 
-    await expect(engine.syncInfrastructure(config)).resolves.not.toThrow();
+    await expect(engine.syncInfrastructure(config)).resolves.toBeUndefined();
   });
 
   it("should sync infrastructure with milestones", async () => {
@@ -52,12 +52,12 @@ describe("BaaC Diff Engine", () => {
       infrastructure: {
         labels: [],
         milestones: [{ title: "Sprint 1", description: "First sprint", due_on: "2025-01-31" }],
-        project: { title: "Test", views: [] },
+        project: { title: "Test", views: [], columns: [] },
         workflows: [],
       },
     };
 
-    await expect(engine.syncInfrastructure(config)).resolves.not.toThrow();
+    await expect(engine.syncInfrastructure(config)).resolves.toBeUndefined();
   });
 
   it("should sync infrastructure with workflows", async () => {
@@ -70,12 +70,12 @@ describe("BaaC Diff Engine", () => {
       infrastructure: {
         labels: [],
         milestones: [],
-        project: { title: "Test", views: [] },
+        project: { title: "Test", views: [], columns: [] },
         workflows: [{ file: "ci.yml", content: "name: CI\non: push" }],
       },
     };
 
-    await expect(engine.syncInfrastructure(config)).resolves.not.toThrow();
+    await expect(engine.syncInfrastructure(config)).resolves.toBeUndefined();
   });
 
   it("should skip empty arrays without errors", async () => {
@@ -88,11 +88,11 @@ describe("BaaC Diff Engine", () => {
       infrastructure: {
         labels: [],
         milestones: [],
-        project: { title: "Test", views: [] },
+        project: { title: "Test", views: [], columns: [] },
         workflows: [],
       },
     };
 
-    await expect(engine.syncInfrastructure(config)).resolves.not.toThrow();
+    await expect(engine.syncInfrastructure(config)).resolves.toBeUndefined();
   });
 });

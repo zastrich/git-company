@@ -94,12 +94,12 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
   - [x] Modelo `AuditLog` (id, companyId, agentId, agentName, action, details, createdAt).
   - [x] Modelo `CompanySecret` (id, companyId, key, value, unique constraint).
   - [x] Modelo `SchedulerProcess` (id, companyId, pid, status, timestamps).
-- [ ] **2.2. Novos Modelos (V4 Extended)**
-  - [ ] Modelo `AIProvider` (id, name, slug, type, baseUrl, isLocal, createdAt) — catálogo global de providers.
-  - [ ] Modelo `AgentConfig` (id, companyId, agentId, role, context, providerId, model, tickIntervalSeconds, labels, isPaused, createdAt, updatedAt).
-  - [ ] Modelo `ChatMessage` (id, companyId, agentId, role, content, createdAt) — histórico de chat com agentes.
-  - [ ] Modelo `CompanyConfig` (id, companyId, key, value) — configurações gerais da empresa.
-  - [ ] Adicionar campo `repoPrefix` no modelo `Company` (slug prefix para repos: "comp-").
+- [x] **2.2. Novos Modelos (V4 Extended)**
+  - [x] Modelo `AIProvider` (id, name, slug, type, baseUrl, isLocal, createdAt) — catálogo global de providers.
+  - [x] Modelo `AgentConfig` (id, companyId, agentId, role, context, providerId, model, tickIntervalSeconds, labels, isPaused, createdAt, updatedAt).
+  - [x] Modelo `ChatMessage` (id, companyId, agentId, role, content, createdAt) — histórico de chat com agentes.
+  - [x] Modelo `CompanyConfig` (id, companyId, key, value) — configurações gerais da empresa.
+  - [x] Adicionar campo `repoPrefix` no modelo `Company` (slug prefix para repos: "comp-").
 - [x] **2.3. Data Access Layer (DAO) com Contexto Tenant**
   - [x] Implementar serviço de busca de empresa por `slug`.
   - [x] Implementar gravador de logs de auditoria isolado (`lib/db/audit.ts`).
@@ -122,10 +122,10 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 - [x] **3.4. Provisionamento de Projects v2 e Views Customizadas (GraphQL)**
   - [x] Implementar mutação GraphQL para criação de views em Projects v2.
   - [x] Mapear layouts (BOARD, ROADMAP, TABLE) para enums da GraphQL API.
-- [ ] **3.5. Sync Bidirecional de Configurações (Novo)**
-  - [ ] Função `pushConfigToRepo`: enviar business.json local para o repositório remoto.
-  - [ ] Função `pullConfigFromRepo`: baixar business.json do repo e atualizar banco local.
-  - [ ] Ao modificar orgChart localmente, push automático para o repositório da empresa.
+- [x] **3.5. Sync Bidirecional de Configurações (Novo)**
+  - [x] Função `pushConfigToRepo`: enviar business.json local para o repositório remoto.
+  - [x] Função `pullConfigFromRepo`: baixar business.json do repo e atualizar banco local.
+  - [x] Ao modificar orgChart localmente, push automático para o repositório da empresa.
 
 ---
 
@@ -137,9 +137,9 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
   - [x] Suporte a Anthropic (Claude).
   - [x] Suporte a Ollama (local).
   - [x] Suporte a Groq.
-  - [ ] Suporte a Google Gemini (`@langchain/google-genai`).
-  - [ ] Suporte a AWS Bedrock (`@langchain/aws`).
-  - [ ] Suporte a Kimi K3 / Moonshot (via OpenAI-compatible endpoint).
+  - [x] Suporte a Google Gemini (`@langchain/google-genai`).
+  - [x] Suporte a AWS Bedrock (`@langchain/aws`).
+  - [x] Suporte a Kimi K3 / Moonshot (via OpenAI-compatible endpoint).
 - [x] **4.2. Factory Dynamic Agent com LangChain**
   - [x] Função `createDynamicAgent(agentConfig, companyMission)` implementada.
   - [x] System Prompt com role, mission e context injetados.
@@ -182,14 +182,14 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
   - [x] `agent:run` — Disparar agentes imediatamente.
   - [x] `secret:set` — Definir um secret.
   - [x] `secret:list` — Listar secrets (mascarados).
-- [ ] **6.2. Novos Comandos (V4 Extended)**
-  - [ ] `company:create` — Criar empresa com slug prefix, repo de organograma, e CEO inicial.
-  - [ ] `company:sync` — Sync bidirecional (pull/push) de configurações.
-  - [ ] `provider:list` — Listar providers de IA configurados.
-  - [ ] `provider:add` — Adicionar novo provider de IA ao catálogo.
-  - [ ] `agent:pause` — Pausar um agente sem perder configurações.
-  - [ ] `agent:resume` — Retomar um agente pausado.
-  - [ ] `agent:chat` — Interagir com um agente via CLI (modo interativo).
+- [x] **6.2. Novos Comandos (V4 Extended)**
+  - [x] `company:create` — Criar empresa com slug prefix, repo de organograma, e CEO inicial.
+  - [x] `company:sync` — Sync bidirecional (pull/push) de configurações.
+  - [x] `provider:list` — Listar providers de IA configurados.
+  - [x] `provider:add` — Adicionar novo provider de IA ao catálogo.
+  - [x] `agent:pause` — Pausar um agente sem perder configurações.
+  - [x] `agent:resume` — Retomar um agente pausado.
+  - [x] `agent:chat` — Interagir com um agente via CLI (modo interativo).
 
 ---
 
@@ -217,81 +217,81 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 ### Fase 8: Sistema de Chat & Interação com Agentes (Novo)
 **Objetivo:** Permitir interação direta com cada agente via chat, com controle de janela de contexto.
 
-- [ ] **8.1. Backend de Chat**
-  - [ ] API Route `POST /api/chat/[companySlug]/[agentId]` para enviar mensagem.
-  - [ ] API Route `GET /api/chat/[companySlug]/[agentId]` para listar histórico.
-  - [ ] Parâmetro `contextWindow` (30d, 90d, all) para filtrar mensagens enviadas como contexto ao LLM.
-  - [ ] Persistência de mensagens na tabela `ChatMessage`.
-- [ ] **8.2. Frontend de Chat**
-  - [ ] Página `/dashboard/[companySlug]/chat/[agentId]` com interface de chat.
-  - [ ] Seletor de janela de contexto (últimos 30 dias, 90 dias, todo período).
-  - [ ] Exibição do histórico de conversas.
-  - [ ] Indicador de "digitando" enquanto o LLM processa.
-- [ ] **8.3. Preparação de Contexto**
-  - [ ] Ao enviar mensagem, carregar histórico conforme janela selecionada.
-  - [ ] Injetar system prompt do agente + histórico + nova mensagem.
-  - [ ] Registrar resposta no banco.
+- [x] **8.1. Backend de Chat**
+  - [x] API Route `POST /api/chat/[companySlug]/[agentId]` para enviar mensagem.
+  - [x] API Route `GET /api/chat/[companySlug]/[agentId]` para listar histórico.
+  - [x] Parâmetro `contextWindow` (30d, 90d, all) para filtrar mensagens enviadas como contexto ao LLM.
+  - [x] Persistência de mensagens na tabela `ChatMessage`.
+- [x] **8.2. Frontend de Chat**
+  - [x] Página `/dashboard/[companySlug]/chat/[agentId]` com interface de chat.
+  - [x] Seletor de janela de contexto (últimos 30 dias, 90 dias, todo período).
+  - [x] Exibição do histórico de conversas.
+  - [x] Indicador de "digitando" enquanto o LLM processa.
+- [x] **8.3. Preparação de Contexto**
+  - [x] Ao enviar mensagem, carregar histórico conforme janela selecionada.
+  - [x] Injetar system prompt do agente + histórico + nova mensagem.
+  - [x] Registrar resposta no banco.
 
 ---
 
 ### Fase 9: Scheduling Avançado & Pause/Resume (Novo)
 **Objetivo:** Permitir configuração granular de intervalos por agente com suporte a pause/resume.
 
-- [ ] **9.1. Configuração de Intervalos**
-  - [ ] Tempo mínimo: 5 minutos (300 segundos). Sem tempo máximo.
-  - [ ] Configurável por agente individualmente.
-  - [ ] Validação: rejeitar intervalos < 300s.
-- [ ] **9.2. Pause/Resume de Agentes**
-  - [ ] Campo `isPaused` na tabela `AgentConfig`.
-  - [ ] Agentes pausados são ignorados pelo scheduler sem perder configs.
-  - [ ] CLI `agent:pause` e `agent:resume`.
-  - [ ] API e UI para toggle de pause/resume.
-- [ ] **9.3. Lista de Agentes Antes da Empresa**
-  - [ ] A configuração de providers/agentes deve ser feita ANTES da criação da empresa e do CEO.
-  - [ ] Fluxo: configurar providers -> configurar agentes -> criar empresa -> CEO é atribuído automaticamente.
+- [x] **9.1. Configuração de Intervalos**
+  - [x] Tempo mínimo: 5 minutos (300 segundos). Sem tempo máximo.
+  - [x] Configurável por agente individualmente.
+  - [x] Validação: rejeitar intervalos < 300s.
+- [x] **9.2. Pause/Resume de Agentes**
+  - [x] Campo `isPaused` na tabela `AgentConfig`.
+  - [x] Agentes pausados são ignorados pelo scheduler sem perder configs.
+  - [x] CLI `agent:pause` e `agent:resume`.
+  - [x] API e UI para toggle de pause/resume.
+- [x] **9.3. Lista de Agentes Antes da Empresa**
+  - [x] A configuração de providers/agentes deve ser feita ANTES da criação da empresa e do CEO.
+  - [x] Fluxo: configurar providers -> configurar agentes -> criar empresa -> CEO é atribuído automaticamente.
 
 ---
 
 ### Fase 10: Criação de Empresa & Org Sync (Novo)
 **Objetivo:** Ao criar uma empresa, gerar slug prefix, repositório inicial e CEO agent.
 
-- [ ] **10.1. Slug Prefix para Repositórios**
-  - [ ] Cada empresa tem um `repoPrefix` (ex: "comp-") que prefixa todos os repos criados por seus agentes.
-  - [ ] Primeiro repositório: `{prefix}org` — contém o organograma (`business.json`).
-- [ ] **10.2. Criação Automática de Repositório**
-  - [ ] Ao criar empresa via CLI/API:
+- [x] **10.1. Slug Prefix para Repositórios**
+  - [x] Cada empresa tem um `repoPrefix` (ex: "comp-") que prefixa todos os repos criados por seus agentes.
+  - [x] Primeiro repositório: `{prefix}org` — contém o organograma (`business.json`).
+- [x] **10.2. Criação Automática de Repositório**
+  - [x] Ao criar empresa via CLI/API:
     1. Gravar no banco local.
     2. Criar repo `{prefix}org` no GitHub.
     3. Fazer commit inicial com `business.json` contendo CEO.
     4. Registrar webhook apontando para a aplicação.
-- [ ] **10.3. CEO Agent Inicial**
-  - [ ] Toda empresa inicia com um CEO agent.
-  - [ ] CEO tem instruções para "contratar" (criar) novos agentes baseado na missão.
-  - [ ] System prompt do CEO inclui: missão da empresa, capacidade de delegação, e instrução de criação de subordinados.
-- [ ] **10.4. Sync de Organograma**
-  - [ ] Ao modificar o orgChart pela ferramenta local, push automático para o repo da empresa.
-  - [ ] Sync bidirecional: atualizar local conforme repo OU enviar alterações locais para o repo.
-  - [ ] Ambas as direções disponíveis via CLI (`company:sync --direction=push|pull`).
+- [x] **10.3. CEO Agent Inicial**
+  - [x] Toda empresa inicia com um CEO agent.
+  - [x] CEO tem instruções para "contratar" (criar) novos agentes baseado na missão.
+  - [x] System prompt do CEO inclui: missão da empresa, capacidade de delegação, e instrução de criação de subordinados.
+- [x] **10.4. Sync de Organograma**
+  - [x] Ao modificar o orgChart pela ferramenta local, push automático para o repo da empresa.
+  - [x] Sync bidirecional: atualizar local conforme repo OU enviar alterações locais para o repo.
+  - [x] Ambas as direções disponíveis via CLI (`company:sync --direction=push|pull`).
 
 ---
 
 ### Fase 11: Testes, CI/CD & Segurança
 **Objetivo:** Garantir robustez, isolamento e performance da plataforma com pipeline automatizada.
 
-- [ ] **11.1. Testes Unitários por Módulo**
-  - [ ] `lib/agents/llm-factory.test.ts` — Factory de LLMs.
-  - [ ] `lib/agents/factory.test.ts` — Agent factory.
-  - [ ] `lib/agents/orchestrator.test.ts` — Orquestrador.
-  - [ ] `lib/agents/task-queue.test.ts` — Task queue.
-  - [ ] `lib/baac/diff.test.ts` — Diff engine.
-  - [ ] `lib/db/audit.test.ts` — Audit log DAO.
-  - [ ] `lib/db/secrets.test.ts` — Secrets com interpolação.
-  - [ ] `lib/github/rest.test.ts` — GitHub REST client.
-  - [ ] `lib/github/graphql.test.ts` — GitHub GraphQL client.
-- [ ] **11.2. Pipeline CI/CD (GitHub Actions)**
-  - [ ] Workflow `ci.yml`: lint + type-check + testes unitários em push/PR.
-  - [ ] Workflow `security.yml`: audit de dependências + scan de secrets.
-  - [ ] Trigger condicional: rodar testes apenas quando arquivos relevantes mudarem (paths filter).
+- [x] **11.1. Testes Unitários por Módulo**
+  - [x] `lib/agents/llm-factory.test.ts` — Factory de LLMs.
+  - [x] `lib/agents/factory.test.ts` — Agent factory.
+  - [x] `lib/agents/orchestrator.test.ts` — Orquestrador.
+  - [x] `lib/agents/task-queue.test.ts` — Task queue.
+  - [x] `lib/baac/diff.test.ts` — Diff engine.
+  - [x] `lib/db/audit.test.ts` — Audit log DAO.
+  - [x] `lib/db/secrets.test.ts` — Secrets com interpolação.
+  - [x] `lib/github/rest.test.ts` — GitHub REST client.
+  - [x] `lib/github/graphql.test.ts` — GitHub GraphQL client.
+- [x] **11.2. Pipeline CI/CD (GitHub Actions)**
+  - [x] Workflow `ci.yml`: lint + type-check + testes unitários em push/PR.
+  - [x] Workflow `security.yml`: audit de dependências + scan de secrets.
+  - [x] Trigger condicional: rodar testes apenas quando arquivos relevantes mudarem (paths filter).
 - [ ] **11.3. Testes de Segurança**
   - [ ] Testar isolamento multitenant (tokens não vazam entre tenants).
   - [ ] Simular payloads falsos de Webhook para validar rejeição HMAC.

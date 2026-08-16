@@ -29,6 +29,8 @@ export function toAgentDefinition(
     return null;
   }
 
+  const provider = agentConfig.provider;
+
   // Resolver a API key do provider via secrets
   const providerKeyMap: Record<string, string> = {
     openai: "OPENAI_API_KEY",
@@ -40,14 +42,14 @@ export function toAgentDefinition(
     ollama: "",
   };
 
-  const secretKey = providerKeyMap[agentConfig.provider.type] ?? "";
+  const secretKey = providerKeyMap[provider.type] ?? "";
   const apiKey = secretKey ? (secrets.get(secretKey) ?? "") : undefined;
 
   const llmConfig: LLMConfig = {
-    provider: agentConfig.provider.type as LLMConfig["provider"],
+    provider: provider.type as LLMConfig["provider"],
     model: agentConfig.model,
     apiKey,
-    baseUrl: agentConfig.provider.baseUrl ?? undefined,
+    baseUrl: provider.baseUrl ?? undefined,
     temperature: agentConfig.temperature,
     maxTokens: agentConfig.maxTokens,
   };
@@ -55,6 +57,7 @@ export function toAgentDefinition(
   return {
     agentId: agentConfig.agentId,
     role: agentConfig.role,
+    type: (agentConfig.type ?? "ai") as "ai" | "human",
     llm: llmConfig,
     context: agentConfig.context,
     tickIntervalSeconds: agentConfig.tickIntervalSeconds,
@@ -125,7 +128,7 @@ export async function executeAgentTick(
       companyName: "",
       version: "1.0",
       agents: [agentDef],
-      infrastructure: { labels: [], milestones: [], project: { title: "", views: [] }, workflows: [] },
+      infrastructure: { labels: [], milestones: [], project: { title: "", views: [], columns: [] }, workflows: [] },
     };
   }
 

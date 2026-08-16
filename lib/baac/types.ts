@@ -90,6 +90,8 @@ export interface ProjectWorkflow {
   columns: WorkflowColumn[];
 }
 
+export type Project = ProjectWorkflow;
+
 // ─────────────────────────────────────────────
 // Issue Lifecycle Configuration
 // ─────────────────────────────────────────────
@@ -140,7 +142,7 @@ export interface Infrastructure {
   project: ProjectWorkflow;
   workflows: Workflow[];
   /** Config do ciclo de vida de issues */
-  issueLifecycle: IssueLifecycle;
+  issueLifecycle?: IssueLifecycle;
 }
 
 // ─────────────────────────────────────────────
