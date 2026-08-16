@@ -8,7 +8,8 @@ import {
   TerminalSquare, 
   Settings,
   ArrowLeft,
-  MessageSquare
+  MessageSquare,
+  Server
 } from "lucide-react";
 
 export default async function DashboardLayout(props: {
@@ -28,6 +29,7 @@ export default async function DashboardLayout(props: {
     { name: "Overview", href: `/dashboard/${company.slug}`, icon: LayoutDashboard },
     { name: "Agentes", href: `/dashboard/${company.slug}/agents`, icon: Users },
     { name: "Chat", href: `/dashboard/${company.slug}/chat`, icon: MessageSquare },
+    { name: "Providers", href: `/dashboard/${company.slug}/providers`, icon: Server },
     { name: "Scheduler", href: `/dashboard/${company.slug}/scheduler`, icon: Activity },
     { name: "Auditoria", href: `/dashboard/${company.slug}/logs`, icon: TerminalSquare },
   ];
@@ -61,10 +63,12 @@ export default async function DashboardLayout(props: {
         </nav>
 
         <div className="p-4 mt-auto border-t border-zinc-800">
-          <button className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all">
-            <Settings className="w-5 h-5 text-zinc-500" />
-            Configurações
-          </button>
+          <Link href={`/dashboard/${company.slug}/settings`}>
+            <div className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition-all cursor-pointer">
+              <Settings className="w-5 h-5 text-zinc-500" />
+              Configurações
+            </div>
+          </Link>
         </div>
       </aside>
 

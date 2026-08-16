@@ -207,10 +207,10 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
   - [x] Tabela com últimos 100 eventos.
 - [x] **7.5. Controle de Scheduler**
   - [x] Interface para iniciar/parar scheduler com status em tempo real.
-- [ ] **7.6. Novos Componentes (V4 Extended)**
-  - [ ] Página de configuração de providers de IA (CRUD no banco).
-  - [ ] Botão de pause/resume por agente.
-  - [ ] Página de configurações da empresa (edição local + sync).
+- [x] **7.6. Novos Componentes (V4 Extended)**
+  - [x] Página de configuração de providers de IA (CRUD no banco).
+  - [x] Botão de pause/resume por agente.
+  - [x] Página de configurações da empresa (edição local + sync).
 
 ---
 
@@ -292,10 +292,10 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
   - [x] Workflow `ci.yml`: lint + type-check + testes unitários em push/PR.
   - [x] Workflow `security.yml`: audit de dependências + scan de secrets.
   - [x] Trigger condicional: rodar testes apenas quando arquivos relevantes mudarem (paths filter).
-- [ ] **11.3. Testes de Segurança**
-  - [ ] Testar isolamento multitenant (tokens não vazam entre tenants).
-  - [ ] Simular payloads falsos de Webhook para validar rejeição HMAC.
-  - [ ] Validar que secrets nunca aparecem em logs.
+- [x] **11.3. Testes de Segurança**
+  - [x] Testar isolamento multitenant (tokens não vazam entre tenants).
+  - [x] Simular payloads falsos de Webhook para validar rejeição HMAC.
+  - [x] Validar que secrets nunca aparecem em logs.
 
 ---
 
