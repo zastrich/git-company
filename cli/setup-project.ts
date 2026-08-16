@@ -96,8 +96,8 @@ async function main() {
 
         // Set status based on issue state
         const statusName = issue.state === "closed"
-          ? config.infrastructure.issueLifecycle.completionColumn
-          : config.infrastructure.issueLifecycle.defaultColumn;
+          ? (config.infrastructure.issueLifecycle?.completionColumn ?? "Done")
+          : (config.infrastructure.issueLifecycle?.defaultColumn ?? "Backlog");
 
         // Find status field and option
         const statusField = projectResult.columnOptions.length > 0

@@ -79,6 +79,10 @@ export async function sendMessage(request: ChatRequest): Promise<ChatResponse> {
     throw new Error(`Agent config "${agentConfigId}" não encontrado.`);
   }
 
+  if (!agentConfig.provider) {
+    throw new Error(`Agente "${agentConfig.agentId}" não possui provider de IA configurado.`);
+  }
+
   // 2. Buscar secrets para resolver API key
   const secrets = await prisma.companySecret.findMany({
     where: { companyId },

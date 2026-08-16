@@ -281,9 +281,9 @@ async function companySync(flags: Record<string, string | boolean>) {
         agentId: a.agentId,
         role: a.role,
         llm: {
-          provider: a.provider.type,
+          provider: a.provider?.type ?? "openai",
           model: a.model,
-          apiKey: `{{${a.provider.type.toUpperCase()}_API_KEY}}`,
+          apiKey: `{{${(a.provider?.type ?? "openai").toUpperCase()}_API_KEY}}`,
         },
         context: a.context,
         tickIntervalSeconds: a.tickIntervalSeconds,
@@ -456,7 +456,7 @@ async function agentList(flags: Record<string, string | boolean>) {
     const status = a.isPaused ? "⏸️  PAUSADO" : "▶️  ATIVO";
     const ceo = a.isCeo ? " 👑" : "";
     console.log(`  ${status} [${a.agentId}] ${a.role}${ceo}`);
-    console.log(`       Provider: ${a.provider.name} (${a.model})`);
+    console.log(`       Provider: ${a.provider?.name ?? "sem provider"} (${a.model})`);
     console.log(`       Interval: ${a.tickIntervalSeconds}s | Labels: ${a.labels || "—"}`);
     console.log();
   }

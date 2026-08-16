@@ -50,7 +50,7 @@ async function main() {
   console.log(`🚀 Executando ${agents.length} agente(s) para "${company.name}"...\n`);
 
   for (const agent of agents) {
-    console.log(`⏱  Agent "${agent.agentId}" (${agent.role}) — ${agent.provider.name} / ${agent.model}`);
+    console.log(`⏱  Agent "${agent.agentId}" (${agent.role}) — ${agent.provider?.name ?? "sem provider"} / ${agent.model}`);
     console.log(`   Labels: ${agent.labels || "—"}`);
 
     try {

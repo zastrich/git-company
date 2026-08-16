@@ -50,7 +50,7 @@ export default async function ChatIndexPage(props: {
                       <h3 className="text-lg font-semibold text-white group-hover:text-indigo-400 transition-colors">
                         {agent.role}
                       </h3>
-                      <p className="text-xs text-zinc-500">{agent.agentId} &middot; {agent.provider.name}</p>
+                      <p className="text-xs text-zinc-500">{agent.agentId} &middot; {agent.provider?.name ?? "Human/Sem provider"}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />

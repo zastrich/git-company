@@ -8,6 +8,7 @@ describe("Orchestrator - resolveAgentForIssue", () => {
     {
       agentId: "backend-dev",
       role: "Backend Developer",
+      type: "ai",
       llm: { provider: "openai", model: "gpt-4o" },
       context: "Backend development",
       tickIntervalSeconds: 300,
@@ -16,6 +17,7 @@ describe("Orchestrator - resolveAgentForIssue", () => {
     {
       agentId: "frontend-dev",
       role: "Frontend Developer",
+      type: "ai",
       llm: { provider: "openai", model: "gpt-4o" },
       context: "Frontend development",
       tickIntervalSeconds: 300,
@@ -24,6 +26,7 @@ describe("Orchestrator - resolveAgentForIssue", () => {
     {
       agentId: "ceo",
       role: "CEO",
+      type: "ai",
       llm: { provider: "anthropic", model: "claude-3-sonnet" },
       context: "Strategic decisions",
       tickIntervalSeconds: 3600,

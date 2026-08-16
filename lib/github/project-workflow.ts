@@ -98,11 +98,9 @@ export async function setupProjectWorkflow(
       }
     `, { projectId });
 
-    let statusField = fieldsData.node.fields.nodes.find(
+    const statusField = fieldsData.node.fields.nodes.find(
       (f: any) => f.name === "Status" && f.options
     );
-
-    const columnOptions: { id: string; name: string }[] = statusField?.options ?? [];
 
     // 5. Map our custom columns to existing GitHub status options
     // GitHub Projects V2 doesn't expose a mutation to add options to single-select fields.
