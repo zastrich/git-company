@@ -1,6 +1,6 @@
 import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
-import { Settings, GitBranch, ShieldCheck, Target, RefreshCw, Database } from "lucide-react";
+import { Settings, ShieldCheck, RefreshCw, Database } from "lucide-react";
 import { SyncButton } from "./sync-button";
 
 export default async function SettingsPage(props: {

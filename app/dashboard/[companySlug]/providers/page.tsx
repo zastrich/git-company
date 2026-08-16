@@ -36,7 +36,7 @@ export default async function ProvidersPage(props: {
           <Server className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
           <h3 className="text-lg font-medium text-zinc-300">Nenhum provider cadastrado no catálogo</h3>
           <p className="text-sm text-zinc-500 mt-1">
-            Clique em "Novo Provider" ou utilize a CLI <code>bun run cli provider:add</code>.
+            Clique em &quot;Novo Provider&quot; ou utilize a CLI <code>bun run cli provider:add</code>.
           </p>
         </div>
       ) : (
