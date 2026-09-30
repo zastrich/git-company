@@ -169,4 +169,4 @@ O pull/import lê tanto o formato modular quanto o legado (monolítico).
 
 ## License
 
-Private
+[MIT](./LICENSE) © zastrich
