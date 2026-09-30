@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/db/client";
 import path from "path";
+import { spawn } from "child_process";
 
 // ─────────────────────────────────────────────
 // GET — Status atual do scheduler
@@ -70,15 +71,13 @@ export async function POST(
 
     const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
 
-    // Iniciar o processo Bun de forma destacada (detached)
-    const proc = Bun.spawn(
-      ["bun", "run", schedulerPath, `--company=${companySlug}`],
-      {
-        detached: true,
-        stdout: "pipe",
-        stderr: "pipe",
-      }
-    );
+    // Iniciar o scheduler como processo Node destacado (Next.js roda em Node, não Bun).
+    // Executa o node atual com o loader do tsx (cross-platform, sem shell → sem
+    // EINVAL no Windows e sem DeprecationWarning de escaping).
+    const proc = spawn(process.execPath, ["--import", "tsx", schedulerPath, `--company=${companySlug}`], {
+      detached: true,
+      stdio: "ignore",
+    });
 
     proc.unref(); // Não bloqueia o processo Next.js
 

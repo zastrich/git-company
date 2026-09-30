@@ -16,6 +16,33 @@ export interface SyncResult {
   message: string;
 }
 
+const DEFAULT_COLUMNS = [
+  { name: "Backlog", description: "Issues aguardando priorização" },
+  { name: "Em Progresso", description: "Issues sendo trabalhadas por agentes AI" },
+  { name: "Revisão", description: "Aguardando revisão humana ou validação" },
+  { name: "Ação Manual", description: "Requer ação de um membro humano", isManualAction: true },
+  { name: "Concluído", description: "Tarefas finalizadas", isDone: true },
+];
+
+/**
+ * Resolve as colunas do workflow do projeto:
+ *  - se o usuário configurou (CompanyConfig workflow_stages não-vazio), usa-as;
+ *  - se configurou explicitamente como vazio (optou por não definir), retorna [];
+ *  - se nunca configurou (sem a config), usa o default de 5 colunas.
+ */
+async function resolveWorkflowColumns(companyId: string): Promise<any[]> {
+  const cfg = await prisma.companyConfig.findUnique({
+    where: { companyId_key: { companyId, key: "workflow_stages" } },
+  });
+  if (!cfg) return DEFAULT_COLUMNS;
+  try {
+    const parsed = JSON.parse(cfg.value);
+    return Array.isArray(parsed) ? parsed : DEFAULT_COLUMNS;
+  } catch {
+    return DEFAULT_COLUMNS;
+  }
+}
+
 /**
  * Carrega business.json de um repositório GitHub.
  */
@@ -118,13 +145,7 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
           { name: "Roadmap", layout: "ROADMAP" as const },
           { name: "Backlog", layout: "TABLE" as const },
         ],
-        columns: [
-          { name: "Backlog", description: "Issues aguardando priorização" },
-          { name: "Em Progresso", description: "Issues sendo trabalhadas por agentes AI" },
-          { name: "Revisão", description: "Aguardando revisão humana ou validação" },
-          { name: "Ação Manual", description: "Requer ação de um membro humano", isManualAction: true },
-          { name: "Concluído", description: "Tarefas finalizadas", isDone: true },
-        ],
+        columns: await resolveWorkflowColumns(companyId),
       },
       workflows: [],
       issueLifecycle: {
@@ -147,33 +168,14 @@ export async function pushToRemote(companyId: string): Promise<SyncResult> {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) return { direction: "push", success: false, message: "Empresa não encontrada." };
 
-  const octokit = new Octokit({ auth: company.githubToken });
   const businessJson = await buildLocalBusinessJson(companyId);
-  const content = Buffer.from(JSON.stringify(businessJson, null, 2)).toString("base64");
 
-  // Buscar SHA atual do arquivo
-  let sha: string | undefined;
-  try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner: company.githubOwner,
-      repo: company.repoName,
-      path: "business.json",
-    });
-    if (!Array.isArray(data) && data.type === "file") {
-      sha = data.sha;
-    }
-  } catch {
-    // Arquivo não existe ainda
-  }
+  // Formato MODULAR: business.json (índice) + agents/<id>.json + workflow.json
+  const { pushModular } = await import("./modular");
+  await pushModular(company.githubToken, company.githubOwner, company.repoName, businessJson);
 
-  await octokit.rest.repos.createOrUpdateFileContents({
-    owner: company.githubOwner,
-    repo: company.repoName,
-    path: "business.json",
-    message: "Sync: push local config to remote",
-    content,
-    sha,
-  });
+  const { clearDirty } = await import("./dirty");
+  await clearDirty(companyId);
 
   await createAuditLog({
     companyId,
@@ -192,14 +194,17 @@ export async function pullFromRemote(companyId: string): Promise<SyncResult> {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) return { direction: "pull", success: false, message: "Empresa não encontrada." };
 
-  let remote: { content: BusinessConfig; sha: string };
+  let config: BusinessConfig;
   try {
-    remote = await fetchRemoteBusinessJson(company.githubToken, company.githubOwner, company.repoName);
+    const { pullModular } = await import("./modular");
+    const parsed = await pullModular(company.githubToken, company.githubOwner, company.repoName);
+    if (!parsed) {
+      return { direction: "pull", success: false, message: "business.json não encontrado no repositório." };
+    }
+    config = parsed;
   } catch (err: any) {
     return { direction: "pull", success: false, message: `Erro ao baixar: ${err.message}` };
   }
-
-  const config = remote.content;
 
   // Atualizar missão da empresa
   if (config.mission) {
@@ -212,40 +217,45 @@ export async function pullFromRemote(companyId: string): Promise<SyncResult> {
   // Sincronizar agentes do JSON remoto para o banco local
   if (config.agents && config.agents.length > 0) {
     for (const agentDef of config.agents) {
-      // Encontrar provider pelo type
-      const provider = await prisma.aIProvider.findFirst({
-        where: { type: agentDef.llm.provider },
-      });
+      const isHuman = agentDef.type === "human";
 
-      if (!provider) continue;
+      // Humanos não têm provider. Para IAs, tenta casar por type;
+      // se custom, casa também por baseUrl (host).
+      let providerId: string | null = null;
+      if (!isHuman) {
+        let provider = null;
+        if (agentDef.llm?.provider === "custom" && agentDef.llm?.baseUrl) {
+          provider = await prisma.aIProvider.findFirst({
+            where: { type: "custom", baseUrl: agentDef.llm.baseUrl },
+          });
+        }
+        if (!provider) {
+          provider = await prisma.aIProvider.findFirst({
+            where: { type: agentDef.llm?.provider ?? "openai" },
+          });
+        }
+        providerId = provider?.id ?? null;
+      }
+
+      const common = {
+        role: agentDef.role,
+        type: isHuman ? "human" : "ai",
+        context: agentDef.context,
+        providerId,
+        model: isHuman ? "" : (agentDef.llm?.model ?? ""),
+        temperature: agentDef.llm?.temperature ?? 0.2,
+        maxTokens: agentDef.llm?.maxTokens ?? 4096,
+        tickIntervalSeconds: Math.max(agentDef.tickIntervalSeconds ?? 300, 300),
+        labels: (agentDef.labels ?? []).join(","),
+        subordinates: (agentDef.subordinates ?? []).join(","),
+        githubUsername: agentDef.githubUsername ?? "",
+        isCeo: agentDef.agentId === "ceo",
+      };
 
       await prisma.agentConfig.upsert({
         where: { companyId_agentId: { companyId, agentId: agentDef.agentId } },
-        update: {
-          role: agentDef.role,
-          context: agentDef.context,
-          providerId: provider.id,
-          model: agentDef.llm.model,
-          temperature: agentDef.llm.temperature ?? 0.2,
-          maxTokens: agentDef.llm.maxTokens ?? 4096,
-          tickIntervalSeconds: Math.max(agentDef.tickIntervalSeconds ?? 300, 300),
-          labels: (agentDef.labels ?? []).join(","),
-          subordinates: (agentDef.subordinates ?? []).join(","),
-        },
-        create: {
-          companyId,
-          agentId: agentDef.agentId,
-          role: agentDef.role,
-          context: agentDef.context,
-          providerId: provider.id,
-          model: agentDef.llm.model,
-          temperature: agentDef.llm.temperature ?? 0.2,
-          maxTokens: agentDef.llm.maxTokens ?? 4096,
-          tickIntervalSeconds: Math.max(agentDef.tickIntervalSeconds ?? 300, 300),
-          labels: (agentDef.labels ?? []).join(","),
-          subordinates: (agentDef.subordinates ?? []).join(","),
-          isCeo: agentDef.agentId === "ceo",
-        },
+        update: common,
+        create: { companyId, agentId: agentDef.agentId, ...common },
       });
     }
   }

@@ -56,6 +56,22 @@ export async function runAgentCycle(
     repo
   );
 
+  // Carrega as regras de todas as etapas (workflow.json) uma vez por ciclo.
+  let stageRules: any[] = [];
+  try {
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: "workflow.json" });
+    if (!Array.isArray(data) && (data as any).type === "file") {
+      const wf = JSON.parse(Buffer.from((data as any).content, "base64").toString("utf-8"));
+      stageRules = wf.stages ?? [];
+    }
+  } catch { /* sem workflow.json — segue sem regras */ }
+
+  const STAGE_PREFIX = "stage::";
+  const currentStageOf = (labels: string[]) => {
+    const l = labels.find((x) => x.startsWith(STAGE_PREFIX));
+    return l ? l.slice(STAGE_PREFIX.length) : undefined;
+  };
+
   let processed = 0;
   let blocked = 0;
   let errors = 0;
@@ -88,7 +104,11 @@ export async function runAgentCycle(
         `[Orchestrator] Agent "${agentDef.agentId}" processando Issue #${task.issue.number}: ${task.issue.title}`
       );
 
-      const result = await runAgent(agentDef, { issueContext: task.issue });
+      const result = await runAgent(agentDef, {
+        issueContext: task.issue,
+        stageRules,
+        currentStage: currentStageOf(task.issue.labels),
+      });
 
       // Postar resposta como comentário na Issue do GitHub
       await octokit.rest.issues.createComment({
@@ -103,14 +123,22 @@ export async function runAgentCycle(
       const isCompleted = completionPatterns.some((p) => result.response.includes(p));
 
       if (isCompleted) {
-        // Auto-close the issue
-        await octokit.rest.issues.update({
-          owner,
-          repo,
-          issue_number: task.issue.number,
-          state: "closed",
-          state_reason: "completed",
-        });
+        // Auto-close via GraphQL updateIssue (REST issues.update está deprecated).
+        try {
+          const { graphql } = await import("@octokit/graphql");
+          const gql = graphql.defaults({ headers: { authorization: `token ${token}` } });
+          const q: any = await gql(
+            `query($owner:String!,$repo:String!,$n:Int!){ repository(owner:$owner,name:$repo){ issue(number:$n){ id } } }`,
+            { owner, repo, n: task.issue.number }
+          );
+          await gql(
+            `mutation($id:ID!){ updateIssue(input:{id:$id,state:CLOSED}){ issue { id } } }`,
+            { id: q.repository.issue.id }
+          );
+        } catch {
+          // fallback REST (ainda funcional até 2028)
+          await octokit.rest.issues.update({ owner, repo, issue_number: task.issue.number, state: "closed", state_reason: "completed" });
+        }
         console.log(
           `[Orchestrator] Issue #${task.issue.number} fechada automaticamente (tarefa concluída).`
         );

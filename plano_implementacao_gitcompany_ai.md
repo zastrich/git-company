@@ -9,7 +9,7 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 
 ### Testes Unitários
 - Todos os módulos devem possuir testes unitários com cobertura mínima de 80%.
-- Framework de testes: **Vitest** (compatível com Bun e TypeScript nativo).
+- Framework de testes: **Vitest** (TypeScript nativo via tsx).
 - Cada módulo deve ter seu arquivo de teste correspondente em `__tests__/` ou `*.test.ts`.
 - Testes devem validar cenários de sucesso, erro e edge cases.
 
@@ -39,7 +39,7 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 
 ## Stack Tecnológica & Requisitos de Arquitetura
 
-* **Runtime Executivo & CLI:** Bun (TypeScript nativo, alta performance na execução de scripts e CLI).
+* **Runtime Executivo & CLI:** Node.js executando TypeScript via tsx (cross-platform: Windows, macOS, Linux).
 * **Framework Frontend & API:** Next.js 14+ (App Router, Server Components e Dynamic Route Handlers).
 * **Orquestração de Agentes IA:** LangChain.js (multi-provider: OpenAI, Anthropic, Google, AWS Bedrock, Ollama, Moonshot/Kimi).
 * **Camada de Persistência:** SQLite gerenciado via Prisma ORM (`file:./main.db`).
@@ -68,10 +68,10 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 ## Lista de Tarefas Detalhada (Work Breakdown Structure)
 
 ### Fase 1: Setup do Projeto e Arquitetura de Base
-**Objetivo:** Configurar o ambiente unificado com Bun, Next.js 14, Prisma e tipagem rigorosa para a especificação `business.json`.
+**Objetivo:** Configurar o ambiente unificado com Node.js (tsx), Next.js 14, Prisma e tipagem rigorosa para a especificação `business.json`.
 
 - [x] **1.1. Inicialização do Repositório e Toolchain**
-  - [x] Inicializar o projeto utilizando Bun (`bun init` / `bun create next-app`).
+  - [x] Inicializar o projeto Next.js com Node.js/npm (execução TS via tsx).
   - [x] Configurar `tsconfig.json` com caminhos de alias (`@/*`) e suporte estrito do TypeScript.
   - [x] Instalar dependências essenciais: `@prisma/client`, `prisma`, `octokit`, `@langchain/openai`, `@langchain/core`, `zod`.
 - [x] **1.2. Definição dos Types para o `business.json`**
@@ -170,7 +170,7 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 
 ---
 
-### Fase 6: Interface de Linha de Comando (CLI via Bun)
+### Fase 6: Interface de Linha de Comando (CLI via Node/tsx)
 **Objetivo:** Disponibilizar ferramentas de CLI velozes para provisionamento e sincronização manual de empresas virtuais.
 
 - [x] **6.1. Comandos Implementados**
@@ -303,7 +303,7 @@ Este documento apresenta o plano detalhado de implementação técnica para a pl
 
 | Módulo | Depende de | Impacto no Bloqueio |
 | :--- | :--- | :--- |
-| **Fase 2 (Prisma/SQLite)** | Fase 1 (Setup Bun/Next.js) | Critico |
+| **Fase 2 (Prisma/SQLite)** | Fase 1 (Setup Node/Next.js) | Critico |
 | **Fase 3 (GitHub APIs)** | Fase 2 (Tokens dos Tenants) | Critico |
 | **Fase 4 (Multi-AI Motor)** | Fase 2 (Secrets) + Fase 3 (Repos) | Alto |
 | **Fase 5 (Webhook Engine)** | Fase 2 & Fase 4 | Critico |

@@ -1,6 +1,8 @@
 import { prisma } from "../../../lib/db/client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { getDirtySince } from "../../../lib/sync/dirty";
+import { SyncIndicator } from "./sync-indicator";
 import { 
   LayoutDashboard, 
   Users, 
@@ -9,7 +11,11 @@ import {
   Settings,
   ArrowLeft,
   MessageSquare,
-  Server
+  Server,
+  Network,
+  LayoutGrid,
+  Flag,
+  Tag
 } from "lucide-react";
 
 export default async function DashboardLayout(props: {
@@ -25,9 +31,15 @@ export default async function DashboardLayout(props: {
     notFound();
   }
 
+  const dirtySince = await getDirtySince(company.id);
+
   const navItems = [
     { name: "Overview", href: `/dashboard/${company.slug}`, icon: LayoutDashboard },
     { name: "Agentes", href: `/dashboard/${company.slug}/agents`, icon: Users },
+    { name: "Organograma", href: `/dashboard/${company.slug}/orgchart`, icon: Network },
+    { name: "Kanban", href: `/dashboard/${company.slug}/kanban`, icon: LayoutGrid },
+    { name: "Roadmap", href: `/dashboard/${company.slug}/roadmap`, icon: Flag },
+    { name: "Etiquetas", href: `/dashboard/${company.slug}/labels`, icon: Tag },
     { name: "Chat", href: `/dashboard/${company.slug}/chat`, icon: MessageSquare },
     { name: "Providers", href: `/dashboard/${company.slug}/providers`, icon: Server },
     { name: "Scheduler", href: `/dashboard/${company.slug}/scheduler`, icon: Activity },
@@ -74,10 +86,12 @@ export default async function DashboardLayout(props: {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto">
-        <div className="p-8 md:p-12 max-w-6xl mx-auto">
+        <div className="p-6 md:p-10 w-full">
           {props.children}
         </div>
       </main>
+
+      <SyncIndicator companySlug={company.slug} dirtySince={dirtySince} />
     </div>
   );
 }

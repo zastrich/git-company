@@ -1,6 +1,6 @@
 // prisma/seed.ts
 // Seeds the database with default AI providers.
-// Run: bun run prisma/seed.ts
+// Run: npm run db:seed  (ou: npx tsx prisma/seed.ts)
 
 import { PrismaClient } from "@prisma/client";
 

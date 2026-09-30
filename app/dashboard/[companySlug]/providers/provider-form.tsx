@@ -4,16 +4,24 @@ import { useState } from "react";
 import { Plus, Server, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export function ProviderForm() {
+/** Deriva a chave de secret a partir do slug do provider (espelha lib/db/secrets.ts). */
+function providerSecretKey(providerSlug: string): string {
+  return `PROVIDER_${providerSlug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+}
+
+export function ProviderForm({ companySlug }: { companySlug: string }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [type, setType] = useState("openai");
   const [baseUrl, setBaseUrl] = useState("");
   const [isLocal, setIsLocal] = useState(false);
+  const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const router = useRouter();
+
+  const isCustom = type === "custom";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,17 +35,36 @@ export function ProviderForm() {
         body: JSON.stringify({ name, slug, type, baseUrl: baseUrl || null, isLocal }),
       });
 
-      if (res.ok) {
-        setMsg("Provider cadastrado com sucesso!");
-        setName("");
-        setSlug("");
-        setBaseUrl("");
-        setOpen(false);
-        router.refresh();
-      } else {
+      if (!res.ok) {
         const err = await res.json();
         setMsg(err.error || "Erro ao cadastrar provider.");
+        return;
       }
+
+      // Se um token foi informado, grava como secret write-only (nunca lido de volta).
+      if (token.trim()) {
+        const secretKey = providerSecretKey(slug);
+        const secRes = await fetch(`/api/secrets/${companySlug}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: secretKey, value: token.trim() }),
+        });
+        if (!secRes.ok) {
+          const err = await secRes.json();
+          setMsg(`Provider salvo, mas falha ao gravar credencial: ${err.error ?? ""}`);
+          setToken("");
+          router.refresh();
+          return;
+        }
+      }
+
+      setMsg("Provider cadastrado com sucesso!");
+      setName("");
+      setSlug("");
+      setBaseUrl("");
+      setToken("");
+      setOpen(false);
+      router.refresh();
     } catch {
       setMsg("Erro de conexão.");
     } finally {
@@ -113,7 +140,15 @@ export function ProviderForm() {
                   <option value="moonshot">Kimi K3 (Moonshot)</option>
                   <option value="ollama">Ollama (Local CLI)</option>
                   <option value="groq">Groq</option>
+                  <option value="custom">Custom (API OpenAI-compatible)</option>
+                  <option value="local">Local (Organizador Básico, sem rede)</option>
                 </select>
+                {isCustom && (
+                  <p className="text-xs text-zinc-500 mt-1.5">
+                    Genérico: informe a Base URL do endpoint (ex: NVIDIA NIM
+                    <code className="mx-1">https://integrate.api.nvidia.com/v1</code>) e o token abaixo.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -124,9 +159,29 @@ export function ProviderForm() {
                   type="text"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
+                  required={isCustom}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm font-mono focus:outline-none focus:border-indigo-500"
-                  placeholder="http://localhost:11434"
+                  placeholder={isCustom ? "https://integrate.api.nvidia.com/v1" : "http://localhost:11434"}
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  Token / API Key {isCustom ? "" : "(Opcional)"}
+                </label>
+                <input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  placeholder="••••  (gravado como segredo write-only)"
+                />
+                {slug && token && (
+                  <p className="text-[11px] text-zinc-500 mt-1.5 font-mono">
+                    Será salvo como: PROVIDER_{slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-1">

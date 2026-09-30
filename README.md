@@ -13,7 +13,7 @@ GitCompany AI transforma um arquivo `business.json` em uma empresa virtual funci
 
 ## Stack
 
-- **Runtime:** Bun + TypeScript
+- **Runtime:** Node.js + TypeScript (via [tsx](https://tsx.is))
 - **Framework:** Next.js 14+ (App Router)
 - **AI:** LangChain.js (multi-provider)
 - **Database:** SQLite via Prisma ORM
@@ -72,28 +72,28 @@ gh auth refresh -s repo,project,read:org,workflow
 
 ```bash
 # Criar empresa com repositório e CEO
-bun run cli/tenant.ts company:create --name="Minha Empresa" --slug=minha-empresa --prefix=me- --token=ghp_xxx --owner=meu-user --mission="Construir o futuro"
+npm run cli company:create -- --name="Minha Empresa" --slug=minha-empresa --prefix=me- --token=ghp_xxx --owner=meu-user --mission="Construir o futuro"
 
 # Listar providers de IA
-bun run cli/tenant.ts provider:list
+npm run cli provider:list
 
 # Adicionar agente
-bun run cli/tenant.ts agent:add --company=minha-empresa --agentId=dev --role="Backend Developer" --provider=openai --model=gpt-4o --context="Desenvolver APIs REST" --interval=600 --labels=backend,api
+npm run cli agent:add -- --company=minha-empresa --agentId=dev --role="Backend Developer" --provider=openai --model=gpt-4o --context="Desenvolver APIs REST" --interval=600 --labels=backend,api
 
 # Pausar/retomar agente
-bun run cli/tenant.ts agent:pause --company=minha-empresa --agent=dev
-bun run cli/tenant.ts agent:resume --company=minha-empresa --agent=dev
+npm run cli agent:pause -- --company=minha-empresa --agent=dev
+npm run cli agent:resume -- --company=minha-empresa --agent=dev
 
 # Configurar secrets (API keys no banco, não em .env)
-bun run cli/tenant.ts secret:set --company=minha-empresa --key=OPENAI_API_KEY --value=sk-xxx
+npm run cli secret:set -- --company=minha-empresa --key=OPENAI_API_KEY --value=sk-xxx
 
 # Sync bidirecional
-bun run cli/tenant.ts company:sync --company=minha-empresa --direction=push
-bun run cli/tenant.ts company:sync --company=minha-empresa --direction=pull
+npm run cli company:sync -- --company=minha-empresa --direction=push
+npm run cli company:sync -- --company=minha-empresa --direction=pull
 
 # Scheduler
-bun run cli/tenant.ts scheduler:start --company=minha-empresa
-bun run cli/tenant.ts scheduler:stop --company=minha-empresa
+npm run cli scheduler:start -- --company=minha-empresa
+npm run cli scheduler:stop -- --company=minha-empresa
 ```
 
 ## Arquitetura

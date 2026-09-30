@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/db/client";
 import path from "path";
+import { spawn } from "child_process";
 
 export async function POST(
   req: NextRequest,
@@ -20,25 +21,15 @@ export async function POST(
 
   const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
 
-  const args = [
-    "bun",
-    "run",
-    schedulerPath,
-    `--company=${companySlug}`,
-    "--run-now",
-  ];
+  const args = ["--import", "tsx", schedulerPath, `--company=${companySlug}`, "--run-now"];
+  if (agentId) args.push(`--agent=${agentId}`);
 
-  if (agentId) {
-    args.push(`--agent=${agentId}`);
-  }
-
-  const proc = Bun.spawn(args, {
-    stdout: "pipe",
-    stderr: "pipe",
+  // Next.js roda em Node — executa o node atual com o loader tsx (sem shell).
+  const exitCode: number = await new Promise((resolve) => {
+    const proc = spawn(process.execPath, args, { stdio: "ignore" });
+    proc.on("close", (code) => resolve(code ?? 1));
+    proc.on("error", () => resolve(1));
   });
-
-  // Aguardar conclusão (processo --run-now termina sozinho)
-  const exitCode = await proc.exited;
 
   return NextResponse.json({
     status: exitCode === 0 ? "COMPLETED" : "ERROR",

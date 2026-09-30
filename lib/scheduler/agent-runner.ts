@@ -40,9 +40,14 @@ export function toAgentDefinition(
     moonshot: "MOONSHOT_API_KEY",
     groq: "GROQ_API_KEY",
     ollama: "",
+    local: "",
   };
 
-  const secretKey = providerKeyMap[provider.type] ?? "";
+  // Provider custom (ex: NVIDIA) e kiro-cli resolvem a chave por slug: PROVIDER_<SLUG>_API_KEY
+  const secretKey =
+    provider.type === "custom" || provider.type === "kiro-cli"
+      ? `PROVIDER_${provider.slug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`
+      : (providerKeyMap[provider.type] ?? "");
   const apiKey = secretKey ? (secrets.get(secretKey) ?? "") : undefined;
 
   const llmConfig: LLMConfig = {
