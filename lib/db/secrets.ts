@@ -68,3 +68,49 @@ export async function upsertSecret(
     create: { companyId, key, value },
   });
 }
+
+/**
+ * Remove um secret do banco.
+ */
+export async function deleteSecret(companyId: string, key: string): Promise<void> {
+  await prisma.companySecret.deleteMany({ where: { companyId, key } });
+}
+
+/**
+ * Metadata de um secret — NUNCA inclui o valor.
+ * Usado pela API/UI para exibir quais chaves existem sem expor conteúdo.
+ */
+export interface SecretMeta {
+  key: string;
+  /** true = já existe um valor gravado (mas não é retornado) */
+  isSet: boolean;
+  /** comprimento do valor, apenas como pista visual (não expõe o valor) */
+  length: number;
+}
+
+/**
+ * Lista apenas os NOMES/metadados dos secrets de um tenant.
+ * Política write-only: o valor jamais é retornado por esta função.
+ */
+export async function listSecretMeta(companyId: string): Promise<SecretMeta[]> {
+  const rows = await prisma.companySecret.findMany({
+    where: { companyId },
+    select: { key: true, value: true },
+    orderBy: { key: "asc" },
+  });
+
+  return rows.map((r) => ({
+    key: r.key,
+    isSet: r.value.length > 0,
+    length: r.value.length,
+  }));
+}
+
+/**
+ * Convenção de nome de secret para a API key de um provider,
+ * derivada do slug do provider. Ex: slug "nvidia-kimi" -> "PROVIDER_NVIDIA_KIMI_API_KEY".
+ * Permite N providers custom sem um mapa fixo.
+ */
+export function providerSecretKey(providerSlug: string): string {
+  return `PROVIDER_${providerSlug.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`;
+}
