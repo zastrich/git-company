@@ -1,7 +1,8 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S npx tsx
 // cli/tenant.ts
 //
 // CLI administrativa do GitCompany-AI.
+// Executa em Node via tsx (cross-platform: Windows, macOS, Linux).
 //
 // Comandos:
 //   tenant:create   --name=<nome> --slug=<slug> --token=<github-token> --owner=<owner> --repo=<repo>
@@ -25,6 +26,7 @@ import { prisma } from "../lib/db/client";
 import { upsertSecret } from "../lib/db/secrets";
 import { registerRepo, listRepos, syncRepoLabels } from "../lib/repos/repo-service";
 import path from "path";
+import { spawn } from "child_process";
 
 // ─────────────────────────────────────────────
 // Argument parsing
@@ -469,10 +471,10 @@ async function agentList(flags: Record<string, string | boolean>) {
 async function schedulerStart(flags: Record<string, string | boolean>) {
   const companySlug = flag(flags, "company");
   const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
-  const proc = Bun.spawn(["bun", "run", schedulerPath, `--company=${companySlug}`], {
+  // Node + loader tsx (cross-platform, sem depender de Bun).
+  const proc = spawn(process.execPath, ["--import", "tsx", schedulerPath, `--company=${companySlug}`], {
     detached: true,
-    stdout: "inherit",
-    stderr: "inherit",
+    stdio: "inherit",
   });
   proc.unref();
   console.log(`✅ Scheduler iniciado para "${companySlug}" (PID: ${proc.pid})`);
@@ -525,12 +527,15 @@ async function agentRun(flags: Record<string, string | boolean>) {
   const agentId = flags["agent"] as string | undefined;
 
   const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
-  const args = ["bun", "run", schedulerPath, `--company=${companySlug}`, "--run-now"];
+  const args = ["--import", "tsx", schedulerPath, `--company=${companySlug}`, "--run-now"];
   if (agentId) args.push(`--agent=${agentId}`);
 
   console.log(`🚀 Disparando agentes para "${companySlug}"...`);
-  const proc = Bun.spawn(args, { stdout: "inherit", stderr: "inherit" });
-  await proc.exited;
+  await new Promise<void>((resolve) => {
+    const proc = spawn(process.execPath, args, { stdio: "inherit" });
+    proc.on("close", () => resolve());
+    proc.on("error", () => resolve());
+  });
   console.log("✅ Execução concluída.");
 }
 
@@ -652,7 +657,7 @@ async function main() {
   if (!command || !(command in commands)) {
     console.log("GitCompany-AI CLI\n");
     console.log("Comandos disponíveis:");
-    Object.keys(commands).forEach((c) => console.log(`  bun run cli/tenant.ts ${c}`));
+    Object.keys(commands).forEach((c) => console.log(`  npm run cli ${c}`));
     process.exit(0);
   }
 
