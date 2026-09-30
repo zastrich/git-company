@@ -71,7 +71,25 @@ export async function POST(
 
     // Resolve o comando conforme o modo (clone/dev via tsx, ou pacote npm via node).
     const { cmd, args } = schedulerCommand([`--company=${companySlug}`]);
-    const proc = spawn(cmd, args, { detached: true, stdio: "ignore" });
+
+    // Log de erros do processo detached em ~/.gitcompany/scheduler-<slug>.log
+    // (stdio:"ignore" escondia crashes, ex.: Prisma não inicializado no modo npx).
+    const os = await import("os");
+    const fs = await import("fs");
+    const path = await import("path");
+    const logDir = path.join(os.homedir(), ".gitcompany");
+    try { fs.mkdirSync(logDir, { recursive: true }); } catch { /* ignore */ }
+    const logFile = path.join(logDir, `scheduler-${companySlug}.log`);
+    const errFd = fs.openSync(logFile, "a");
+
+    // O scheduler (scheduler/index.ts) sincroniza o @prisma/client gerado do
+    // bundle standalone por conta própria no modo npx. Aqui apenas garantimos
+    // que DATABASE_URL seja repassado explicitamente ao filho (além da herança).
+    const proc = spawn(cmd, args, {
+      detached: true,
+      stdio: ["ignore", errFd, errFd],
+      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
+    });
 
     proc.unref(); // Não bloqueia o processo Next.js
 

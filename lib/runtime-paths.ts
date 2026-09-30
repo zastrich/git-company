@@ -49,20 +49,46 @@ export function ensureDatabaseUrl(): string {
 // Resolução do entrypoint do scheduler (clone vs pacote npm)
 // ─────────────────────────────────────────────
 
-/** Raiz do projeto/pacote (a pasta que contém package.json). */
+/** Uma raiz válida contém tanto o entrypoint do scheduler quanto a pasta lib/. */
+function isValidRoot(dir: string): boolean {
+  const hasScheduler =
+    fs.existsSync(path.join(dir, "scheduler", "index.ts")) ||
+    fs.existsSync(path.join(dir, "scheduler", "index.js"));
+  const hasLib = fs.existsSync(path.join(dir, "lib"));
+  return hasScheduler && hasLib;
+}
+
+/**
+ * Raiz do projeto/pacote — a pasta que contém o código-fonte (scheduler/ + lib/).
+ *
+ * ATENÇÃO: quando o servidor roda a partir do bundle standalone do Next, o
+ * process.cwd() (ou dirs próximos) contém um package.json E um scheduler/ (a
+ * entry é rastreada como dependência), mas NÃO contém lib/. Por isso exigimos
+ * a presença de lib/ junto do scheduler/ para considerar uma raiz válida, e
+ * subimos a árvore a partir do cwd para achar a raiz real do pacote.
+ */
 export function projectRoot(): string {
-  // Em clone/dev, process.cwd() é a raiz. Em pacote instalado, este módulo
-  // vive em <pkg>/lib/runtime-paths(.ts|.js); subimos um nível.
-  // Preferimos process.cwd() quando existir um package.json ali (clone/dev),
-  // senão caímos para o diretório do módulo.
   const cwd = process.cwd();
-  if (fs.existsSync(path.join(cwd, "package.json"))) return cwd;
-  // __dirname existe em CJS; em ESM o bundler do Next injeta. Fallback seguro:
-  try {
-    return path.resolve(__dirname, "..");
-  } catch {
-    return cwd;
+
+  // 1) Sobe a partir do cwd procurando uma raiz válida (scheduler/ + lib/).
+  let dir = cwd;
+  for (let i = 0; i < 8; i++) {
+    if (isValidRoot(dir)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
+
+  // 2) Fallback: diretório do módulo (em CJS/tsx, <root>/lib/runtime-paths).
+  try {
+    const fromModule = path.resolve(__dirname, "..");
+    if (isValidRoot(fromModule)) return fromModule;
+  } catch {
+    /* __dirname ausente (ESM) */
+  }
+
+  // 3) Último recurso: cwd (comportamento antigo).
+  return cwd;
 }
 
 /**
@@ -82,3 +108,4 @@ export function schedulerCommand(extraArgs: string[]): { cmd: string; args: stri
   // modo clone/dev: executa o .ts via loader tsx
   return { cmd: process.execPath, args: ["--import", "tsx", tsEntry, ...extraArgs] };
 }
+
