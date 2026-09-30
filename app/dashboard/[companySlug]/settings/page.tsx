@@ -1,7 +1,12 @@
 import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
-import { Settings, ShieldCheck, RefreshCw, Database } from "lucide-react";
+import { Settings, RefreshCw, Database } from "lucide-react";
 import { SyncButton } from "./sync-button";
+import { SecretsManager } from "./secrets-manager";
+import { CompanyEditor } from "./company-editor";
+import { DeleteProject } from "./delete-project";
+import { RepoManager } from "./repo-manager";
+import { listSecretMeta } from "../../../../lib/db/secrets";
 
 export default async function SettingsPage(props: {
   params: Promise<{ companySlug: string }>;
@@ -10,13 +15,14 @@ export default async function SettingsPage(props: {
   const company = await prisma.company.findUnique({
     where: { slug: params.companySlug },
     include: {
-      secrets: { select: { key: true } },
       configs: true,
       _count: { select: { agents: true, repos: true, logs: true } },
     },
   });
 
   if (!company) notFound();
+
+  const secretMeta = await listSecretMeta(company.id);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -31,11 +37,17 @@ export default async function SettingsPage(props: {
         {/* Painel Principal de Informações */}
         <div className="lg:col-span-2 space-y-6">
           <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 space-y-5">
-            <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
-              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
-                <Settings className="w-5 h-5" />
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">Identificação da Empresa</h3>
               </div>
-              <h3 className="text-lg font-semibold text-white">Identificação da Empresa</h3>
+              <CompanyEditor
+                companySlug={company.slug}
+                initial={{ name: company.name, mission: company.mission, repoPrefix: company.repoPrefix }}
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -68,27 +80,9 @@ export default async function SettingsPage(props: {
             </div>
           </div>
 
-          <div className="p-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 space-y-4">
-            <div className="flex items-center gap-3 border-b border-zinc-800 pb-4">
-              <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-400">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Segredos & Credenciais</h3>
-            </div>
+          <RepoManager companySlug={company.slug} initialOwner={company.githubOwner} initialRepo={company.repoName} />
 
-            <p className="text-xs text-zinc-400">
-              Todas as chaves de API estão armazenadas de forma segura na tabela <code>CompanySecret</code> e nunca expostas na interface.
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              {company.secrets.map((s) => (
-                <span key={s.key} className="px-3 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-xs font-mono text-zinc-300 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  {s.key}
-                </span>
-              ))}
-            </div>
-          </div>
+          <SecretsManager companySlug={company.slug} initialSecrets={secretMeta} />
         </div>
 
         {/* Painel de Sincronização */}
@@ -141,6 +135,8 @@ export default async function SettingsPage(props: {
               </div>
             </div>
           </div>
+
+          <DeleteProject companySlug={company.slug} companyName={company.name} />
         </div>
       </div>
     </div>

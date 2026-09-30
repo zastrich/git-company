@@ -2,6 +2,8 @@ import { prisma } from "../../../../lib/db/client";
 import { notFound } from "next/navigation";
 import { Bot, BrainCircuit, RefreshCw, Crown } from "lucide-react";
 import { AgentPauseButton } from "./agent-pause-button";
+import { AgentEditor } from "./agent-editor";
+import { AgentDeleteButton } from "./agent-delete-button";
 
 export default async function AgentsPage(props: {
   params: Promise<{ companySlug: string }>;
@@ -19,15 +21,21 @@ export default async function AgentsPage(props: {
 
   if (!company) notFound();
 
+  const providers = await prisma.aIProvider.findMany({ orderBy: { name: "asc" } });
+  const providerOpts = providers.map((p) => ({ slug: p.slug, name: p.name, type: p.type }));
+  const allAgents = company.agents.map((a) => ({ agentId: a.agentId, role: a.role }));
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white">Agentes da Empresa</h1>
           <p className="text-zinc-400 mt-2">
-            Organograma e especialistas cadastrados para a empresa <span className="font-semibold text-indigo-400">{company.name}</span>.
+            Especialistas cadastrados para a empresa <span className="font-semibold text-indigo-400">{company.name}</span>.
+            Veja a hierarquia em <a href={`/dashboard/${company.slug}/orgchart`} className="text-indigo-400 hover:underline">Organograma</a>.
           </p>
         </div>
+        <AgentEditor companySlug={company.slug} providers={providerOpts} allAgents={allAgents} mode="create" />
       </div>
 
       {company.agents.length === 0 ? (
@@ -35,7 +43,7 @@ export default async function AgentsPage(props: {
           <Bot className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
           <h3 className="text-lg font-medium text-zinc-300">Nenhum agente cadastrado no banco</h3>
           <p className="text-sm text-zinc-500 mt-1">
-            Utilize a CLI <code>bun run cli company:create</code> ou <code>agent:add</code> para cadastrar agentes.
+            Utilize a CLI <code>npm run cli company:create</code> ou <code>agent:add</code> para cadastrar agentes.
           </p>
         </div>
       ) : (
@@ -63,11 +71,36 @@ export default async function AgentsPage(props: {
                   </div>
                 </div>
 
-                <AgentPauseButton
-                  agentId={agent.id}
+                <div className="flex items-center gap-1.5">
+                  <AgentPauseButton
+                    agentId={agent.id}
+                    companySlug={company.slug}
+                    initialIsPaused={agent.isPaused}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 mb-4">
+                <AgentEditor
                   companySlug={company.slug}
-                  initialIsPaused={agent.isPaused}
+                  providers={providerOpts}
+                  allAgents={allAgents}
+                  mode="edit"
+                  initial={{
+                    agentId: agent.agentId,
+                    role: agent.role,
+                    type: (agent.type === "human" ? "human" : "ai"),
+                    context: agent.context,
+                    providerSlug: agent.provider?.slug ?? null,
+                    model: agent.model,
+                    tickIntervalSeconds: agent.tickIntervalSeconds,
+                    labels: agent.labels,
+                    subordinates: agent.subordinates,
+                    isCeo: agent.isCeo,
+                    githubUsername: agent.githubUsername,
+                  }}
                 />
+                <AgentDeleteButton companySlug={company.slug} agentId={agent.agentId} role={agent.role} />
               </div>
 
               <div className="flex-1 space-y-4 mb-6">
