@@ -39,26 +39,43 @@ Providers são configurados na tela **LLMs** (`/providers`); as credenciais fica
 | **Kiro (CLI)** | `kiro-cli` | Integra o binário do Kiro CLI (requer um CLI/gateway headless que responda no stdout) |
 | **Local (básico)** | `local` | Modelo determinístico offline, sem chave — útil para bootstrap/testes |
 
-## Setup Local
+## Instalação
+
+### Opção 1 — via `npx` (recomendada)
+
+Um único comando baixa, prepara o banco local e sobe a aplicação no navegador:
 
 ```bash
-# Instalar dependências
-npm install
-
-# Criar banco de dados
-npm run db:push
-
-# Seed dos providers de IA
-npm run db:seed
-
-# Rodar testes
-npm test
-
-# Dev server
-npm run dev
+npx gitcompany-ai deploy
 ```
 
-Depois de subir o dev server:
+- O banco SQLite é criado em `~/.gitcompany/main.db` (não polui a pasta atual).
+- Outros comandos:
+  - `npx gitcompany-ai start` — sobe o servidor sem abrir o navegador
+  - `npx gitcompany-ai doctor` — diagnóstico (banco, modo, standalone)
+  - `npx gitcompany-ai db:reset` — recria o banco local
+  - `npx gitcompany-ai <cli-cmd>` — repassa para a CLI administrativa (ex.: `npx gitcompany-ai provider:list`)
+
+### Opção 2 — clonando o repositório (desenvolvimento)
+
+```bash
+git clone https://github.com/zastrich/git-company.git
+cd git-company
+cp .env.example .env      # define DATABASE_URL=file:./main.db
+npm install
+npm run db:push           # cria o banco local
+npm run db:seed           # popula os providers de IA
+npm run dev               # dev server em http://localhost:3000
+```
+
+Para rodar como produção localmente (build + standalone):
+
+```bash
+npm run build
+node bin/cli.js start
+```
+
+### Primeiros passos (após subir)
 
 1. Abra **Diagnóstico** e configure o **token GitHub global** (ver scopes abaixo).
 2. Abra **LLMs** e cadastre ao menos um provider com credencial (ex.: Gemini).
@@ -91,7 +108,11 @@ gh auth refresh -s repo,project,read:org,workflow
 
 ## CLI
 
-A CLI roda em Node via tsx. Passe os argumentos após `--`.
+Os comandos administrativos funcionam nos dois modos:
+- **npx:** `npx gitcompany-ai <comando> [--flags]`
+- **clone:** `npm run cli <comando> -- [--flags]`
+
+Exemplos (formato clone; via npx troque por `npx gitcompany-ai ...` sem o `--`):
 
 ```bash
 # Criar empresa com repositório e CEO
@@ -139,11 +160,15 @@ app/
   onboarding/     # Wizard de criação com IA + importação
   providers/      # Configuração global de LLMs
   diagnostics/    # Diagnóstico do token GitHub global
+bin/              # Binário npx (deploy/start/doctor + repasse da CLI)
 cli/              # CLI administrativa (Node/tsx)
 scheduler/        # Entrypoint do scheduler (Node/tsx)
 prisma/           # Schema + seeds
 .github/workflows # CI (lint + type-check + testes) + Security (audit + secrets scan)
 ```
+
+`lib/runtime-paths.ts` resolve o `DATABASE_URL` (`~/.gitcompany/main.db` no modo npx,
+`./main.db` no clone) e o comando do scheduler conforme o modo (tsx no clone, node no pacote).
 
 ## Modelo de dados no repositório (business.json modular)
 

@@ -31,6 +31,7 @@ yarn-error.log*
 # env files (personal - never commit)
 .env
 .env.*
+!.env.example
 
 # database files (personal/local)
 *.db
