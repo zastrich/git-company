@@ -4,6 +4,7 @@
 
 import { prisma } from "../db/client";
 import { createLLM } from "../agents/llm-factory";
+import { providerSecretKey } from "../db/secrets";
 import { LLMConfig } from "../baac/types";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 
@@ -98,9 +99,16 @@ export async function sendMessage(request: ChatRequest): Promise<ChatResponse> {
     moonshot: "MOONSHOT_API_KEY",
     groq: "GROQ_API_KEY",
     ollama: "",
+    local: "",
   };
 
-  const secretKey = providerKeyMap[agentConfig.provider.type] ?? "";
+  // Para providers "custom" (OpenAI-compatible, ex: NVIDIA NIM) e "kiro-cli",
+  // a chave é derivada do slug do provider: PROVIDER_<SLUG>_API_KEY. Isso permite
+  // N providers sem depender do mapa fixo acima.
+  const secretKey =
+    agentConfig.provider.type === "custom" || agentConfig.provider.type === "kiro-cli"
+      ? providerSecretKey(agentConfig.provider.slug)
+      : (providerKeyMap[agentConfig.provider.type] ?? "");
   const apiKey = secretKey ? (secretsMap.get(secretKey) ?? "") : undefined;
 
   // 3. Criar LLM

@@ -30,7 +30,7 @@ export async function createLLM(config: LLMConfig): Promise<BaseChatModel> {
         model: config.model,
         temperature,
         maxTokens,
-        openAIApiKey: config.apiKey,
+        apiKey: config.apiKey,
         configuration: config.baseUrl ? { baseURL: config.baseUrl } : undefined,
       });
     }
@@ -79,7 +79,7 @@ export async function createLLM(config: LLMConfig): Promise<BaseChatModel> {
         model: config.model,
         temperature,
         maxTokens,
-        openAIApiKey: config.apiKey,
+        apiKey: config.apiKey,
         configuration: {
           baseURL: config.baseUrl ?? "https://api.moonshot.cn/v1",
         },
@@ -102,6 +102,44 @@ export async function createLLM(config: LLMConfig): Promise<BaseChatModel> {
         temperature,
         maxTokens,
         apiKey: config.apiKey,
+      });
+    }
+
+    case "local": {
+      // LLM local determinística — sem rede, sem API key.
+      // Serve para iniciar o Organizador Pessoal e testar o fluxo de chat.
+      const { LocalChatModel } = await import("./local-llm");
+      return new LocalChatModel({ model: config.model || "local-organizer-v1" });
+    }
+
+    case "custom": {
+      // Provider genérico: qualquer API compatível com OpenAI (local ou online).
+      // Ex: NVIDIA NIM (https://integrate.api.nvidia.com/v1), LM Studio, vLLM, etc.
+      // Requer baseUrl e (geralmente) apiKey.
+      if (!config.baseUrl) {
+        throw new Error(
+          `[LLMFactory] Provider "custom" requer baseUrl (endpoint OpenAI-compatible).`
+        );
+      }
+      const { ChatOpenAI } = await import("@langchain/openai");
+      return new ChatOpenAI({
+        model: config.model,
+        temperature,
+        maxTokens,
+        apiKey: config.apiKey ?? "not-needed",
+        configuration: { baseURL: config.baseUrl },
+      });
+    }
+
+    case "kiro-cli": {
+      // Kiro via CLI: executa o binário `kiro chat` como subprocesso,
+      // autenticando com o token via KIRO_API_KEY no ambiente.
+      const { KiroCliChatModel } = await import("./kiro-cli-llm");
+      return new KiroCliChatModel({
+        model: config.model || "kiro-cli",
+        apiKey: config.apiKey,
+        // baseUrl é reaproveitada como caminho do binário, se informado.
+        binPath: config.baseUrl || "kiro",
       });
     }
 

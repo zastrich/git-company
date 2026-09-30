@@ -4,7 +4,7 @@
 // LLM Configuration
 // ─────────────────────────────────────────────
 
-export type LLMProvider = "openai" | "ollama" | "anthropic" | "groq" | "gemini" | "bedrock" | "moonshot";
+export type LLMProvider = "openai" | "ollama" | "anthropic" | "groq" | "gemini" | "bedrock" | "moonshot" | "local" | "custom" | "kiro-cli";
 
 export interface LLMConfig {
   provider: LLMProvider;
