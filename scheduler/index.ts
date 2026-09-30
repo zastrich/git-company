@@ -1,11 +1,12 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S npx tsx
 // scheduler/index.ts
 //
-// Entrypoint do processo scheduler.
+// Entrypoint do processo scheduler. Executa em Node via tsx
+// (cross-platform: Windows, macOS, Linux).
 // Uso:
-//   bun run scheduler/index.ts --company=acme-corp
-//   bun run scheduler/index.ts --company=acme-corp --agent=dev-agent
-//   bun run scheduler/index.ts --company=acme-corp --run-now
+//   npx tsx scheduler/index.ts --company=acme-corp
+//   npx tsx scheduler/index.ts --company=acme-corp --agent=dev-agent
+//   npx tsx scheduler/index.ts --company=acme-corp --run-now
 
 import { SchedulerService } from "../lib/scheduler/scheduler-service";
 
