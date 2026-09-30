@@ -136,7 +136,7 @@ export default async function SettingsPage(props: {
             </div>
           </div>
 
-          <DeleteProject companySlug={company.slug} companyName={company.name} />
+          <DeleteProject companySlug={company.slug} />
         </div>
       </div>
     </div>

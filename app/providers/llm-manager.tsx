@@ -28,8 +28,8 @@ export function LlmManager() {
   const [slug, setSlug] = useState("");
   const [type, setType] = useState("custom");
   const [baseUrl, setBaseUrl] = useState("");
-  const [isLocal, setIsLocal] = useState(false);
   const [token, setToken] = useState("");
+  const isLocal = type === "ollama" || type === "local";
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 

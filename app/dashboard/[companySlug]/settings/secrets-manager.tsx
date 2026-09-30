@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Plus, Trash2, Check, Loader2, ShieldCheck } from "lucide-react";
+import { KeyRound, Plus, Trash2, Loader2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface SecretMeta {

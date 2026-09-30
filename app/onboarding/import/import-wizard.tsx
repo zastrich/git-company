@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Download, Loader2, Check, KeyRound, AlertTriangle, ArrowRight } from "lucide-react";
 
 interface MissingSecret { key: string; providerType: string; reason: string }
@@ -18,7 +17,6 @@ interface ImportResult {
 }
 
 export function ImportWizard() {
-  const router = useRouter();
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
   const [token, setToken] = useState("");
