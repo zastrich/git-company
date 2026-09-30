@@ -3,8 +3,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/db/client";
-import path from "path";
 import { spawn } from "child_process";
+import { schedulerCommand } from "../../../../../lib/runtime-paths";
 
 export async function POST(
   req: NextRequest,
@@ -19,14 +19,12 @@ export async function POST(
     return NextResponse.json({ error: "Tenant não encontrado." }, { status: 404 });
   }
 
-  const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
+  const extra = [`--company=${companySlug}`, "--run-now"];
+  if (agentId) extra.push(`--agent=${agentId}`);
+  const { cmd, args } = schedulerCommand(extra);
 
-  const args = ["--import", "tsx", schedulerPath, `--company=${companySlug}`, "--run-now"];
-  if (agentId) args.push(`--agent=${agentId}`);
-
-  // Next.js roda em Node — executa o node atual com o loader tsx (sem shell).
   const exitCode: number = await new Promise((resolve) => {
-    const proc = spawn(process.execPath, args, { stdio: "ignore" });
+    const proc = spawn(cmd, args, { stdio: "ignore" });
     proc.on("close", (code) => resolve(code ?? 1));
     proc.on("error", () => resolve(1));
   });

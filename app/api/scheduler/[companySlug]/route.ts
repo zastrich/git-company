@@ -1,8 +1,8 @@
 // app/api/scheduler/[companySlug]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/db/client";
-import path from "path";
 import { spawn } from "child_process";
+import { schedulerCommand } from "../../../../lib/runtime-paths";
 
 // ─────────────────────────────────────────────
 // GET — Status atual do scheduler
@@ -69,15 +69,9 @@ export async function POST(
       return NextResponse.json({ status: "ALREADY_RUNNING", pid: schedulerRecord.pid });
     }
 
-    const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
-
-    // Iniciar o scheduler como processo Node destacado (Next.js roda em Node, não Bun).
-    // Executa o node atual com o loader do tsx (cross-platform, sem shell → sem
-    // EINVAL no Windows e sem DeprecationWarning de escaping).
-    const proc = spawn(process.execPath, ["--import", "tsx", schedulerPath, `--company=${companySlug}`], {
-      detached: true,
-      stdio: "ignore",
-    });
+    // Resolve o comando conforme o modo (clone/dev via tsx, ou pacote npm via node).
+    const { cmd, args } = schedulerCommand([`--company=${companySlug}`]);
+    const proc = spawn(cmd, args, { detached: true, stdio: "ignore" });
 
     proc.unref(); // Não bloqueia o processo Next.js
 

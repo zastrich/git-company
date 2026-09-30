@@ -25,8 +25,8 @@
 import { prisma } from "../lib/db/client";
 import { upsertSecret } from "../lib/db/secrets";
 import { registerRepo, listRepos, syncRepoLabels } from "../lib/repos/repo-service";
-import path from "path";
 import { spawn } from "child_process";
+import { schedulerCommand } from "../lib/runtime-paths";
 
 // ─────────────────────────────────────────────
 // Argument parsing
@@ -470,12 +470,8 @@ async function agentList(flags: Record<string, string | boolean>) {
 
 async function schedulerStart(flags: Record<string, string | boolean>) {
   const companySlug = flag(flags, "company");
-  const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
-  // Node + loader tsx (cross-platform, sem depender de Bun).
-  const proc = spawn(process.execPath, ["--import", "tsx", schedulerPath, `--company=${companySlug}`], {
-    detached: true,
-    stdio: "inherit",
-  });
+  const { cmd, args } = schedulerCommand([`--company=${companySlug}`]);
+  const proc = spawn(cmd, args, { detached: true, stdio: "inherit" });
   proc.unref();
   console.log(`✅ Scheduler iniciado para "${companySlug}" (PID: ${proc.pid})`);
 }
@@ -526,13 +522,13 @@ async function agentRun(flags: Record<string, string | boolean>) {
   const companySlug = flag(flags, "company");
   const agentId = flags["agent"] as string | undefined;
 
-  const schedulerPath = path.join(process.cwd(), "scheduler", "index.ts");
-  const args = ["--import", "tsx", schedulerPath, `--company=${companySlug}`, "--run-now"];
-  if (agentId) args.push(`--agent=${agentId}`);
+  const extra = [`--company=${companySlug}`, "--run-now"];
+  if (agentId) extra.push(`--agent=${agentId}`);
+  const { cmd, args } = schedulerCommand(extra);
 
   console.log(`🚀 Disparando agentes para "${companySlug}"...`);
   await new Promise<void>((resolve) => {
-    const proc = spawn(process.execPath, args, { stdio: "inherit" });
+    const proc = spawn(cmd, args, { stdio: "inherit" });
     proc.on("close", () => resolve());
     proc.on("error", () => resolve());
   });
