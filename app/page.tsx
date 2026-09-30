@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Building2, ChevronRight, Activity, CalendarDays, Sparkles, Download, Server, Stethoscope, AlertTriangle } from "lucide-react";
 import { hasGlobalGitHubToken } from "../lib/github/global-token";
 
+// Lê o banco em tempo de requisição — não pré-renderizar no build (sem DATABASE_URL no CI).
+export const dynamic = "force-dynamic";
+
 export default async function GlobalSelector() {
   const companies = await prisma.company.findMany({
     where: { slug: { not: "__system__" } },

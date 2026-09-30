@@ -20,6 +20,9 @@ function keyForProvider(type: string, slug: string): string {
   return FIXED_KEY_MAP[type] ?? "";
 }
 
+// Lê o banco em tempo de requisição — não pré-renderizar no build.
+export const dynamic = "force-dynamic";
+
 export default async function OnboardingPage() {
   const all = await prisma.aIProvider.findMany({ orderBy: { name: "asc" } });
   const systemId = await getSystemCompanyId();
