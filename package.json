@@ -13,6 +13,7 @@
     "public",
     "prisma/schema.prisma",
     "prisma/seed.ts",
+    "prisma/init.sql",
     "cli",
     "scheduler",
     "lib",

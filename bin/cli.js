@@ -31,8 +31,11 @@ function dataDir() {
 }
 
 function isClone() {
-  // Em clone/dev existe scheduler/index.ts (código-fonte) e um .env local.
-  return fs.existsSync(path.join(PKG_ROOT, "scheduler", "index.ts"));
+  // É "pacote" quando instalado sob node_modules ou no cache do npx (_npx).
+  // Caso contrário, é um clone/checkout de desenvolvimento.
+  const norm = PKG_ROOT.replace(/\\/g, "/");
+  const installed = /\/node_modules\//.test(norm) || /\/_npx\//.test(norm);
+  return !installed;
 }
 
 /**
@@ -76,16 +79,17 @@ function dbFilePath() {
 function bootstrapDb({ force = false } = {}) {
   ensureDbEnv();
   const exists = fs.existsSync(dbFilePath());
-  const prismaBin = path.join(PKG_ROOT, "node_modules", ".bin", process.platform === "win32" ? "prisma.cmd" : "prisma");
-  const prisma = fs.existsSync(prismaBin) ? prismaBin : "npx";
-  const prismaArgs = fs.existsSync(prismaBin) ? [] : ["prisma"];
-
+  if (force && exists) {
+    try { fs.rmSync(dbFilePath(), { force: true }); } catch { /* ignore */ }
+  }
   if (force || !exists) {
     console.log("• Preparando banco de dados local em " + dbFilePath());
-    const pushArgs = [...prismaArgs, "db", "push", "--skip-generate", "--accept-data-loss"];
-    run(prisma, pushArgs);
-    // seed dos providers padrão
-    tsxRunner("prisma/seed.ts", "prisma/seed.js", []);
+    // Bootstrap autônomo: usa o @prisma/client do bundle (com engine),
+    // sem depender do CLI do Prisma nem do tsx.
+    const code = run(process.execPath, [path.join(PKG_ROOT, "bin", "bootstrap.js"), process.env.DATABASE_URL]);
+    if (code !== 0) {
+      console.error("• Falha ao preparar o banco de dados.");
+    }
   }
 }
 
@@ -127,6 +131,42 @@ function ensureStandaloneAssets() {
   const publicSrc = path.join(PKG_ROOT, "public");
   const publicDest = path.join(saRoot, "public");
   if (fs.existsSync(publicSrc) && !fs.existsSync(publicDest)) copyDirSync(publicSrc, publicDest);
+  ensurePrismaAlias(saRoot);
+}
+
+/**
+ * O build Turbopack referencia o Prisma como "@prisma/client-<hash>", que não
+ * existe no bundle (lá é "@prisma/client"). Cria diretórios-alias apontando
+ * para o client real para o require do servidor standalone resolver.
+ */
+function ensurePrismaAlias(saRoot) {
+  try {
+    const serverDir = path.join(saRoot, ".next", "server");
+    const nmPrisma = path.join(saRoot, "node_modules", "@prisma");
+    const realClient = path.join(nmPrisma, "client");
+    if (!fs.existsSync(serverDir) || !fs.existsSync(realClient)) return;
+
+    // coleta os hashes referenciados nos chunks
+    const hashes = new Set();
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (e.name.endsWith(".js")) {
+          const txt = fs.readFileSync(p, "utf8");
+          const re = /@prisma\/client-([0-9a-f]+)/g;
+          let m;
+          while ((m = re.exec(txt))) hashes.add(m[1]);
+        }
+      }
+    };
+    walk(serverDir);
+
+    for (const h of hashes) {
+      const aliasDir = path.join(nmPrisma, `client-${h}`);
+      if (!fs.existsSync(aliasDir)) copyDirSync(realClient, aliasDir);
+    }
+  } catch { /* best-effort */ }
 }
 
 function startServer({ open = false } = {}) {
@@ -142,7 +182,8 @@ function startServer({ open = false } = {}) {
     child = spawn(process.execPath, [standalone], {
       stdio: "inherit",
       cwd: PKG_ROOT,
-      env: { ...process.env, PORT: port, HOSTNAME: "127.0.0.1" },
+      // HOSTNAME 0.0.0.0 garante bind em todas as interfaces (localhost inclusive).
+      env: { ...process.env, PORT: port, HOSTNAME: "0.0.0.0" },
     });
   } else {
     // clone/dev sem build standalone: usa next start (requer build prévio) ou dev
