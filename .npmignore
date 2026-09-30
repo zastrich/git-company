@@ -1,0 +1,19 @@
+# Nunca publicar segredos nem bancos locais no pacote npm.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+*.db
+**/*.db
+*.db-journal
+**/*.db-journal
+
+# Artefatos de desenvolvimento/teste que não pertencem ao pacote
+.playwright-mcp/
+*.log
+.git
+.github
+lib/__tests__/
+vitest.config.ts
+tsconfig.tsbuildinfo

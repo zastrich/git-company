@@ -33,7 +33,7 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:reset": "npx prisma db push --force-reset && npx tsx prisma/seed.ts",
     "db:studio": "npx prisma studio",
-    "prepack": "next build",
+    "prepack": "next build && node bin/prepack-clean.js",
     "deploy": "node bin/cli.js deploy",
     "test": "vitest run",
     "test:watch": "vitest",
