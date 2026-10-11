@@ -20,6 +20,8 @@ export interface AgentEditValue {
   isCeo: boolean;
   githubUsername: string;
   mcpServersJson: string;
+  cliToolsJson: string;
+  contextFilesJson: string;
 }
 
 export function AgentEditor({
@@ -53,8 +55,12 @@ export function AgentEditor({
     isCeo: initial?.isCeo ?? false,
     githubUsername: initial?.githubUsername ?? "",
     mcpServersJson: initial?.mcpServersJson ?? "[]",
+    cliToolsJson: initial?.cliToolsJson ?? "[]",
+    contextFilesJson: initial?.contextFilesJson ?? "[]",
   });
   const [mcpJsonError, setMcpJsonError] = useState("");
+  const [cliJsonError, setCliJsonError] = useState("");
+  const [ctxJsonError, setCtxJsonError] = useState("");
 
   const isHuman = v.type === "human";
   const inputCls =
@@ -75,6 +81,8 @@ export function AgentEditor({
     setMsg("");
 
     let mcpServers: unknown[] = [];
+    let cliTools: unknown[] = [];
+    let contextFiles: unknown[] = [];
     if (!isHuman) {
       try {
         const parsed = JSON.parse(v.mcpServersJson || "[]");
@@ -84,16 +92,32 @@ export function AgentEditor({
         setMsg("Config de MCP Servers inválida — corrija o JSON antes de salvar.");
         return;
       }
+      try {
+        const parsed = JSON.parse(v.cliToolsJson || "[]");
+        if (!Array.isArray(parsed)) throw new Error("não é um array");
+        cliTools = parsed;
+      } catch {
+        setMsg("Config de Ferramentas CLI inválida — corrija o JSON antes de salvar.");
+        return;
+      }
+      try {
+        const parsed = JSON.parse(v.contextFilesJson || "[]");
+        if (!Array.isArray(parsed)) throw new Error("não é um array");
+        contextFiles = parsed;
+      } catch {
+        setMsg("Lista de Arquivos de contexto inválida — corrija o JSON antes de salvar.");
+        return;
+      }
     }
 
     setSaving(true);
     try {
       const method = mode === "create" ? "POST" : "PUT";
-      const { mcpServersJson, ...rest } = v;
+      const { mcpServersJson, cliToolsJson, contextFilesJson, ...rest } = v;
       const res = await fetch(`/api/company/${companySlug}/agents`, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...rest, mcpServers }),
+        body: JSON.stringify({ ...rest, mcpServers, cliTools, contextFiles }),
       });
       const data = await res.json();
       if (!res.ok) { setMsg(data.error ?? "Erro ao salvar."); return; }
@@ -240,6 +264,68 @@ export function AgentEditor({
                   ) : (
                     <p className="text-xs text-zinc-500 mt-1">
                       Lista de MCP Servers disponíveis para o agente. Use <code className="font-mono">{"{{NOME_DO_SECRET}}"}</code> para referenciar secrets da empresa (nunca cole valores reais aqui).
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Ferramentas CLI (JSON) */}
+              {!isHuman && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Ferramentas CLI (JSON)</label>
+                  <textarea
+                    value={v.cliToolsJson}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      set("cliToolsJson", val);
+                      try {
+                        const parsed = JSON.parse(val || "[]");
+                        if (!Array.isArray(parsed)) throw new Error();
+                        setCliJsonError("");
+                      } catch {
+                        setCliJsonError("JSON inválido — informe um array de ferramentas CLI.");
+                      }
+                    }}
+                    rows={6}
+                    className={`${inputCls} font-mono`}
+                    placeholder={'[\n  {\n    "id": "gh-issue",\n    "name": "Criar issue",\n    "description": "Cria uma issue no repositório",\n    "command": "gh",\n    "args": [\n      { "literal": "issue" },\n      { "literal": "create" },\n      { "param": "title", "required": true }\n    ]\n  }\n]'}
+                  />
+                  {cliJsonError ? (
+                    <p className="text-xs text-red-400 mt-1">{cliJsonError}</p>
+                  ) : (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      O <code className="font-mono">command</code> e os <code className="font-mono">literal</code> são fixos; a LLM só preenche os <code className="font-mono">param</code>. Prefira flags nomeadas e coloque argumentos posicionais antes de parâmetros opcionais. Use <code className="font-mono">{"{{NOME_DO_SECRET}}"}</code> em <code className="font-mono">env</code> (nunca cole valores reais aqui).
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Arquivos de contexto (.md) (JSON) */}
+              {!isHuman && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Arquivos de contexto (.md) (JSON)</label>
+                  <textarea
+                    value={v.contextFilesJson}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      set("contextFilesJson", val);
+                      try {
+                        const parsed = JSON.parse(val || "[]");
+                        if (!Array.isArray(parsed)) throw new Error();
+                        setCtxJsonError("");
+                      } catch {
+                        setCtxJsonError("JSON inválido — informe um array de caminhos.");
+                      }
+                    }}
+                    rows={3}
+                    className={`${inputCls} font-mono`}
+                    placeholder={'["docs/agents/eisenhower.md"]'}
+                  />
+                  {ctxJsonError ? (
+                    <p className="text-xs text-red-400 mt-1">{ctxJsonError}</p>
+                  ) : (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Caminhos relativos ao workspace para contexto grande em <code className="font-mono">.md</code>. Caminhos absolutos ou com <code className="font-mono">..</code> são rejeitados.
                     </p>
                   )}
                 </div>

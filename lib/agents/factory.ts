@@ -4,6 +4,7 @@ import { AIMessage, BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { AgentDefinition, IssueContext, McpServerConfig } from "../baac/types";
 import { createLLM } from "./llm-factory";
+import { assembleAgentContext } from "./context-loader";
 
 export interface StageRule {
   name: string;
@@ -131,9 +132,13 @@ REGRAS ABSOLUTAS:
 
   const contextBlock = buildContextBlock(input.issueContext, input.stageRules, input.currentStage);
 
+  // Contexto montado em camadas (inline + arquivos .md). Sem contextFiles,
+  // retorna agentDef.context inalterado — comportamento preservado.
+  const assembledContext = assembleAgentContext(agentDef);
+
   const formatted = await prompt.formatMessages({
     role: agentDef.role,
-    agentContext: agentDef.context,
+    agentContext: assembledContext,
     contextBlock,
   });
 

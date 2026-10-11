@@ -34,6 +34,38 @@ export interface McpServerConfig {
 }
 
 // ─────────────────────────────────────────────
+// CLI Tool Configuration
+// ─────────────────────────────────────────────
+
+export interface CliArgSpec {
+  /** Literal inserido verbatim no argv (ex.: "--json"). Mutuamente exclusivo com param. */
+  literal?: string;
+  /** Nome do parâmetro preenchido pela LLM (vira propriedade no schema da ferramenta). */
+  param?: string;
+  /** Se o param é obrigatório na tool-call. Default false. Ignorado quando literal. */
+  required?: boolean;
+  /** Descrição exibida à LLM no schema (apenas para param). */
+  description?: string;
+}
+
+export interface CliToolConfig {
+  /** Identificador único; vira o name da ferramenta LangChain. */
+  id: string;
+  /** Nome legível (rastreamento/UI). */
+  name: string;
+  /** Descrição exibida à LLM. */
+  description: string;
+  /** Comando-base FIXO (ex.: "gh", "notion", "gcloud"). Nunca vem da LLM. */
+  command: string;
+  /** Especificação ordenada do argv após o comando. */
+  args: CliArgSpec[];
+  /** Timeout em ms. Default 30000, teto 120000. */
+  timeoutMs?: number;
+  /** Variáveis de ambiente; valores podem conter {{SECRET}}. */
+  env?: Record<string, string>;
+}
+
+// ─────────────────────────────────────────────
 // Agent / Member Definition
 // ─────────────────────────────────────────────
 
@@ -58,6 +90,17 @@ export interface AgentDefinition {
   githubUsername?: string;
   /** MCP Servers que este agente pode utilizar via LLM */
   mcpServers?: McpServerConfig[];
+  /** Ferramentas CLI que este agente pode utilizar via LLM */
+  cliTools?: CliToolConfig[];
+  /** Caminhos .md (relativos ao workspace) com contexto grande do agente */
+  contextFiles?: string[];
+  /**
+   * True quando este agente é o CEO/raiz do organograma.
+   * Persistido APENAS para round-trip do business.json — não é propriedade
+   * de runtime (o orchestrator não consome este flag; vem undefined em
+   * runtime por construção via toAgentDefinition).
+   */
+  isCeo?: boolean;
 }
 
 // ─────────────────────────────────────────────

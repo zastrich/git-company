@@ -5,7 +5,7 @@
 
 import { prisma } from "../db/client";
 import { Octokit } from "@octokit/rest";
-import { BusinessConfig } from "../baac/types";
+import { BusinessConfig, McpServerConfig, CliToolConfig } from "../baac/types";
 import { createAuditLog } from "../db/audit";
 
 export type SyncDirection = "push" | "pull";
@@ -14,6 +14,21 @@ export interface SyncResult {
   direction: SyncDirection;
   success: boolean;
   message: string;
+}
+
+/**
+ * Faz parse de uma coluna JSON-string em array, com fallback seguro.
+ * Retorna undefined para ""/[]/JSON inválido/não-array (omitido do business.json).
+ */
+function parseJsonArray<T>(raw: string | null | undefined): T[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as T[];
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const DEFAULT_COLUMNS = [
@@ -103,6 +118,12 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
     labels: a.labels.split(",").map((l) => l.trim()).filter(Boolean),
     subordinates: a.subordinates.split(",").map((s) => s.trim()).filter(Boolean),
     githubUsername: a.githubUsername || undefined,
+    // isCeo emitido explicitamente (fonte canônica do flag no round-trip);
+    // omitido (undefined) quando falso para não poluir o JSON.
+    isCeo: a.isCeo || undefined,
+    mcpServers: parseJsonArray<McpServerConfig>(a.mcpServers),
+    cliTools: parseJsonArray<CliToolConfig>(a.cliTools),
+    contextFiles: parseJsonArray<string>(a.contextFiles),
   }));
 
   // Construir orgChart
@@ -249,7 +270,12 @@ export async function pullFromRemote(companyId: string): Promise<SyncResult> {
         labels: (agentDef.labels ?? []).join(","),
         subordinates: (agentDef.subordinates ?? []).join(","),
         githubUsername: agentDef.githubUsername ?? "",
-        isCeo: agentDef.agentId === "ceo",
+        // Preserva o flag quando o JSON novo o traz; fallback retroativo para
+        // JSON antigo (sem o campo) via agentId === "ceo".
+        isCeo: agentDef.isCeo ?? (agentDef.agentId === "ceo"),
+        mcpServers: JSON.stringify(agentDef.mcpServers ?? []),
+        cliTools: JSON.stringify(agentDef.cliTools ?? []),
+        contextFiles: JSON.stringify(agentDef.contextFiles ?? []),
       };
 
       await prisma.agentConfig.upsert({

@@ -109,6 +109,8 @@ export default async function AgentsPage(props: {
                     isCeo: agent.isCeo,
                     githubUsername: agent.githubUsername,
                     mcpServersJson: safeMcpJson(agent.mcpServers),
+                    cliToolsJson: safeMcpJson(agent.cliTools),
+                    contextFilesJson: safeMcpJson(agent.contextFiles),
                   }}
                 />
                 <AgentDeleteButton companySlug={company.slug} agentId={agent.agentId} role={agent.role} />

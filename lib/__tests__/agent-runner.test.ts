@@ -29,6 +29,8 @@ describe("Agent Runner - toAgentDefinition", () => {
     labels: "backend,api,database",
     subordinates: "junior-dev,intern",
     mcpServers: "",
+    cliTools: "",
+    contextFiles: "",
     isPaused: false,
     isCeo: false,
     createdAt: new Date(),
@@ -121,5 +123,32 @@ describe("Agent Runner - toAgentDefinition", () => {
     const config = { ...mockAgentConfig, mcpServers: "{not valid json" };
     const result = toAgentDefinition(config as any, secrets);
     expect(result!.mcpServers).toBeUndefined();
+  });
+
+  it("should parse cliTools from valid JSON string", () => {
+    const cli = [
+      { id: "gh", name: "GitHub CLI", description: "d", command: "gh", args: [{ literal: "issue" }] },
+    ];
+    const config = { ...mockAgentConfig, cliTools: JSON.stringify(cli) };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.cliTools).toEqual(cli);
+  });
+
+  it("should return undefined cliTools when empty/[]/invalid", () => {
+    expect(toAgentDefinition({ ...mockAgentConfig, cliTools: "" } as any, secrets)!.cliTools).toBeUndefined();
+    expect(toAgentDefinition({ ...mockAgentConfig, cliTools: "[]" } as any, secrets)!.cliTools).toBeUndefined();
+    expect(toAgentDefinition({ ...mockAgentConfig, cliTools: "{bad" } as any, secrets)!.cliTools).toBeUndefined();
+  });
+
+  it("should parse contextFiles from valid JSON string", () => {
+    const config = { ...mockAgentConfig, contextFiles: JSON.stringify(["a.md", "b.md"]) };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.contextFiles).toEqual(["a.md", "b.md"]);
+  });
+
+  it("should return undefined contextFiles when empty/[]/invalid", () => {
+    expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "" } as any, secrets)!.contextFiles).toBeUndefined();
+    expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "[]" } as any, secrets)!.contextFiles).toBeUndefined();
+    expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "{bad" } as any, secrets)!.contextFiles).toBeUndefined();
   });
 });

@@ -2,7 +2,7 @@
 // Single Responsibility: Execute a single agent tick cycle.
 
 import { AgentConfig, AIProvider } from "@prisma/client";
-import { LLMConfig, AgentDefinition, McpServerConfig } from "../baac/types";
+import { LLMConfig, AgentDefinition, McpServerConfig, CliToolConfig } from "../baac/types";
 import { runAgentCycle } from "../agents/orchestrator";
 import { prisma } from "../db/client";
 import { applySecrets } from "../db/secrets";
@@ -62,6 +62,10 @@ export function toAgentDefinition(
     }
   }
 
+  // Parse de cliTools/contextFiles (JSON string) com fallback seguro para vazio.
+  const cliTools = parseJsonArray<CliToolConfig>(agentConfig.cliTools);
+  const contextFiles = parseJsonArray<string>(agentConfig.contextFiles);
+
   const llmConfig: LLMConfig = {
     provider: provider.type as LLMConfig["provider"],
     model: agentConfig.model,
@@ -81,7 +85,25 @@ export function toAgentDefinition(
     labels: agentConfig.labels ? agentConfig.labels.split(",").map((l) => l.trim()).filter(Boolean) : [],
     subordinates: agentConfig.subordinates ? agentConfig.subordinates.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
     mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
+    cliTools,
+    contextFiles,
   };
+}
+
+/**
+ * Faz parse de uma coluna JSON-string em um array tipado, com fallback seguro.
+ * Retorna undefined para ""/[]/JSON inválido/não-array (estado neutro =
+ * "sem config", preservando compatibilidade com linhas antigas).
+ */
+export function parseJsonArray<T>(raw: string | null | undefined): T[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as T[];
+    return undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

@@ -8,7 +8,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/db/client";
 import { createAuditLog } from "../../../../../lib/db/audit";
 import { markDirty } from "../../../../../lib/sync/dirty";
-import { McpServerConfig } from "../../../../../lib/baac/types";
+import { McpServerConfig, CliToolConfig } from "../../../../../lib/baac/types";
+
+// Coerção defensiva: garante que o valor gravado no DB é sempre um array JSON.
+const asArray = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
+const asStringArray = (x: unknown): string[] =>
+  (Array.isArray(x) ? x : []).filter((s): s is string => typeof s === "string");
 
 async function resolveCompany(slug: string) {
   return prisma.company.findUnique({ where: { slug } });
@@ -27,6 +32,8 @@ interface AgentBody {
   isCeo?: boolean;
   githubUsername?: string;
   mcpServers?: McpServerConfig[];
+  cliTools?: CliToolConfig[];
+  contextFiles?: string[];
 }
 
 async function providerIdFromSlug(slug: string | null | undefined): Promise<string | null> {
@@ -75,7 +82,9 @@ export async function POST(
       subordinates: body?.subordinates ?? "",
       isCeo: Boolean(body?.isCeo),
       githubUsername: body?.githubUsername ?? "",
-      mcpServers: JSON.stringify(body?.mcpServers ?? []),
+      mcpServers: JSON.stringify(asArray(body?.mcpServers)),
+      cliTools: JSON.stringify(asArray(body?.cliTools)),
+      contextFiles: JSON.stringify(asStringArray(body?.contextFiles)),
     },
   });
 
@@ -119,7 +128,9 @@ export async function PUT(
   if (body?.subordinates !== undefined) data.subordinates = body.subordinates;
   if (body?.isCeo !== undefined) data.isCeo = Boolean(body.isCeo);
   if (body?.githubUsername !== undefined) data.githubUsername = body.githubUsername;
-  if (body?.mcpServers !== undefined) data.mcpServers = JSON.stringify(body.mcpServers);
+  if (body?.mcpServers !== undefined) data.mcpServers = JSON.stringify(asArray(body.mcpServers));
+  if (body?.cliTools !== undefined) data.cliTools = JSON.stringify(asArray(body.cliTools));
+  if (body?.contextFiles !== undefined) data.contextFiles = JSON.stringify(asStringArray(body.contextFiles));
 
   await prisma.agentConfig.update({ where: { id: agent.id }, data });
   await markDirty(company.id);

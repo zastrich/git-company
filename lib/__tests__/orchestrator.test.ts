@@ -32,6 +32,15 @@ vi.mock("../agents/mcp-executor", () => ({
   executeMcpToolCall: (...args: unknown[]) => executeMcpToolCallMock(...args),
 }));
 
+const executeCliToolCallMock = vi.fn();
+vi.mock("../agents/cli-executor", () => ({
+  executeCliToolCall: (...args: unknown[]) => executeCliToolCallMock(...args),
+  cliToolsToLangChain: (cliTools: any[], map: Map<string, any>) => {
+    cliTools.forEach((c) => map.set(c.id, c));
+    return cliTools.map((c) => ({ name: c.id }));
+  },
+}));
+
 vi.mock("../db/secrets", () => ({
   getSecrets: (...args: unknown[]) => getSecretsMock(...args),
   interpolateSecrets: (config: unknown) => config,
@@ -176,6 +185,7 @@ describe("Orchestrator - runAgentCycle agentic loop", () => {
     getSecretsMock.mockReset().mockResolvedValue(new Map());
     createAuditLogMock.mockReset().mockResolvedValue({});
     auditCreateMock.mockReset().mockResolvedValue({});
+    executeCliToolCallMock.mockReset();
   });
 
   it("runs the loop: tool_calls on iteration 1, final response on iteration 2", async () => {
@@ -285,6 +295,8 @@ describe("Orchestrator - runAgentCycle agentic loop", () => {
     expect(runAgentMock).toHaveBeenCalledTimes(1);
     expect(connectMcpServerMock).not.toHaveBeenCalled();
     expect(executeMcpToolCallMock).not.toHaveBeenCalled();
+    // Agente sem MCP e sem CLI NUNCA chama getSecrets (preservação de comportamento).
+    expect(getSecretsMock).not.toHaveBeenCalled();
     // Exatamente um comentário (a resposta do agente).
     expect(createCommentMock).toHaveBeenCalledTimes(1);
     expect(result.processed).toBe(1);
@@ -324,6 +336,120 @@ describe("Orchestrator - runAgentCycle agentic loop", () => {
     );
     // Prossegue sem o servidor: uma resposta final postada.
     expect(createCommentMock).toHaveBeenCalledTimes(1);
+    expect(result.processed).toBe(1);
+  });
+
+  it("CLI-only agent: executa ferramenta CLI e posta comentários ⚙️/📋 com toolCall.name", async () => {
+    const cliAgent: AgentDefinition = {
+      agentId: "ops",
+      role: "Operador",
+      type: "ai",
+      llm: { provider: "openai", model: "gpt-4o" },
+      context: "Opera CLIs",
+      tickIntervalSeconds: 60,
+      labels: ["agenda"],
+      cliTools: [
+        { id: "gh-issue", name: "Criar issue", description: "cria", command: "gh", args: [{ literal: "issue" }] },
+      ],
+    };
+
+    getAvailableTasksMock.mockResolvedValue([
+      { issue, agentDef: cliAgent, isBlocked: false, pendingBlockers: [] },
+    ]);
+
+    executeCliToolCallMock.mockResolvedValue({
+      success: true,
+      toolId: "gh-issue",
+      toolName: "Criar issue",
+      stdout: "issue criada #10",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 5,
+    });
+
+    runAgentMock
+      .mockResolvedValueOnce({
+        agentId: "ops",
+        role: "Operador",
+        response: "Vou criar a issue.",
+        toolCalls: [{ id: "call_1", name: "gh-issue", args: { title: "x" } }],
+        rawMessage: new AIMessage({ content: "Vou criar a issue." }),
+      })
+      .mockResolvedValueOnce({
+        agentId: "ops",
+        role: "Operador",
+        response: "Issue criada. [TAREFA_CONCLUÍDA]",
+        toolCalls: undefined,
+      });
+
+    const result = await runAgentCycle(cliAgent, config, "company-1", "token", "org", "repo");
+
+    expect(executeCliToolCallMock).toHaveBeenCalledTimes(1);
+    expect(getSecretsMock).toHaveBeenCalled(); // CLI dispara ensureSecrets
+    const bodies = createCommentMock.mock.calls.map((c) => (c[0] as { body: string }).body);
+    expect(bodies.some((b) => b.includes("⚙️") && b.includes("Executando ferramenta CLI **gh-issue**"))).toBe(true);
+    expect(bodies.some((b) => b.includes("📋") && b.includes("Resultado da CLI **gh-issue**") && b.includes("issue criada #10"))).toBe(true);
+    // Nenhum "undefined" nos comentários CLI.
+    expect(bodies.some((b) => b.includes("undefined"))).toBe(false);
+    expect(result.processed).toBe(1);
+  });
+
+  it("agente misto MCP+CLI resolve a origem de cada tool-call por name", async () => {
+    const mixedAgent: AgentDefinition = {
+      agentId: "misto",
+      role: "Misto",
+      type: "ai",
+      llm: { provider: "openai", model: "gpt-4o" },
+      context: "MCP + CLI",
+      tickIntervalSeconds: 60,
+      labels: ["agenda"],
+      mcpServers: [{ id: "gcal", name: "Google Agenda", transport: "sse", url: "https://example.com/mcp" }],
+      cliTools: [{ id: "gh-issue", name: "Criar issue", description: "cria", command: "gh", args: [{ literal: "issue" }] }],
+    };
+
+    getAvailableTasksMock.mockResolvedValue([
+      { issue, agentDef: mixedAgent, isBlocked: false, pendingBlockers: [] },
+    ]);
+
+    const connection = {
+      serverId: "gcal",
+      serverName: "Google Agenda",
+      listTools: vi.fn().mockResolvedValue([
+        { name: "create_event", description: "Cria evento", inputSchema: { type: "object", properties: {} } },
+      ]),
+      callTool: vi.fn(),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+    };
+    connectMcpServerMock.mockResolvedValue(connection);
+
+    executeMcpToolCallMock.mockResolvedValue({
+      success: true, serverId: "gcal", serverName: "Google Agenda", toolName: "create_event",
+      result: { ok: true }, durationMs: 1,
+    });
+    executeCliToolCallMock.mockResolvedValue({
+      success: true, toolId: "gh-issue", toolName: "Criar issue", stdout: "ok", stderr: "", exitCode: 0, durationMs: 1,
+    });
+
+    runAgentMock
+      .mockResolvedValueOnce({
+        agentId: "misto",
+        role: "Misto",
+        response: "Vou usar as duas.",
+        toolCalls: [
+          { id: "c1", name: "create_event", args: {} },
+          { id: "c2", name: "gh-issue", args: {} },
+        ],
+        rawMessage: new AIMessage({ content: "Vou usar as duas." }),
+      })
+      .mockResolvedValueOnce({
+        agentId: "misto", role: "Misto", response: "Pronto. [TAREFA_CONCLUÍDA]", toolCalls: undefined,
+      });
+
+    const result = await runAgentCycle(mixedAgent, config, "company-1", "token", "org", "repo");
+
+    expect(executeMcpToolCallMock).toHaveBeenCalledTimes(1);
+    expect(executeCliToolCallMock).toHaveBeenCalledTimes(1);
+    expect(connection.disconnect).toHaveBeenCalledTimes(1);
     expect(result.processed).toBe(1);
   });
 });

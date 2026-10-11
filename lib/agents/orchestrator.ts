@@ -2,11 +2,12 @@
 import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
-import { BusinessConfig, AgentDefinition, IssueContext, McpServerConfig } from "../baac/types";
+import { BusinessConfig, AgentDefinition, IssueContext, McpServerConfig, CliToolConfig } from "../baac/types";
 import { runAgent } from "./factory";
 import { getAvailableTasksForAgent, QueuedTask } from "./task-queue";
 import { connectMcpServer, McpConnection, McpToolSchema } from "./mcp-client";
 import { executeMcpToolCall } from "./mcp-executor";
+import { executeCliToolCall, cliToolsToLangChain } from "./cli-executor";
 import { getSecrets, interpolateSecrets } from "../db/secrets";
 import { createAuditLog } from "../db/audit";
 import { prisma } from "../db/client";
@@ -147,9 +148,16 @@ export async function runAgentCycle(
       // Degradação graciosa: falha em um server loga MCP_CONNECTION_ERROR e segue.
       const tools: StructuredToolInterface[] = [];
       const toolToConnection = new Map<string, McpConnection>();
+      const toolToCli = new Map<string, CliToolConfig>();
+
+      // Carregamento único de segredos por tarefa. SÓ dispara quando o agente
+      // tem MCP OU CLI — um agente sem ferramenta NUNCA chama getSecrets
+      // (preserva o comportamento atual).
+      let secrets: Map<string, string> | null = null;
+      const ensureSecrets = async () => (secrets ??= await getSecrets(companyId));
 
       if (agentDef.mcpServers && agentDef.mcpServers.length > 0) {
-        const secrets = await getSecrets(companyId);
+        const secrets = await ensureSecrets();
         for (const serverConfig of agentDef.mcpServers) {
           try {
             const resolved = interpolateSecrets(serverConfig, secrets);
@@ -177,6 +185,27 @@ export async function runAgentCycle(
             });
             // Continua sem este servidor.
           }
+        }
+      }
+
+      // ── Vincular Ferramentas CLI declaradas (segredos resolvidos sob demanda) ──
+      // Degradação graciosa: ferramenta mal-formada é pulada (CLI_TOOL_SKIPPED).
+      if (agentDef.cliTools && agentDef.cliTools.length > 0) {
+        await ensureSecrets();
+        try {
+          tools.push(...cliToolsToLangChain(agentDef.cliTools, toolToCli));
+        } catch (cliErr: any) {
+          console.error("[Orchestrator] Falha ao converter ferramentas CLI:", cliErr?.message);
+          await createAuditLog({
+            companyId,
+            agentId: agentDef.agentId,
+            agentName: agentDef.role,
+            action: "CLI_TOOL_SKIPPED",
+            details: {
+              issueNumber: task.issue.number,
+              error: cliErr instanceof Error ? cliErr.message : String(cliErr),
+            },
+          });
         }
       }
 
@@ -208,25 +237,20 @@ export async function runAgentCycle(
 
         // Executa cada tool_call, com rastreamento na Issue.
         for (const toolCall of result.toolCalls) {
-          const conn = toolToConnection.get(toolCall.name);
-          const serverName = conn?.serverName ?? "desconhecido";
-
-          await octokit.rest.issues.createComment({
-            owner,
-            repo,
-            issue_number: task.issue.number,
-            body: `> 🔌 **${agentDef.role}** (GitCompany-AI)\n\nAcessando ${serverName} via MCP Server (ferramenta: \`${toolCall.name}\`)`,
-          });
-
           let toolContent: string;
 
-          if (!conn) {
-            // Ferramenta sem conexão correspondente (servidor caiu/degradou).
-            toolContent = JSON.stringify({
-              success: false,
-              error: `Nenhuma conexão MCP disponível para a ferramenta "${toolCall.name}".`,
+          if (toolToConnection.has(toolCall.name)) {
+            // ── Ramo MCP (inalterado) ──
+            const conn = toolToConnection.get(toolCall.name)!;
+            const serverName = conn.serverName ?? "desconhecido";
+
+            await octokit.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: task.issue.number,
+              body: `> 🔌 **${agentDef.role}** (GitCompany-AI)\n\nAcessando ${serverName} via MCP Server (ferramenta: \`${toolCall.name}\`)`,
             });
-          } else {
+
             const callResult = await executeMcpToolCall({
               connection: conn,
               toolName: toolCall.name,
@@ -240,14 +264,50 @@ export async function runAgentCycle(
                 ? { success: true, result: callResult.result }
                 : { success: false, error: callResult.error }
             );
-          }
 
-          await octokit.rest.issues.createComment({
-            owner,
-            repo,
-            issue_number: task.issue.number,
-            body: `> 📋 **${agentDef.role}** (GitCompany-AI)\n\nResultado do MCP Server ${serverName}:\n\n\`\`\`json\n${toolContent}\n\`\`\``,
-          });
+            await octokit.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: task.issue.number,
+              body: `> 📋 **${agentDef.role}** (GitCompany-AI)\n\nResultado do MCP Server ${serverName}:\n\n\`\`\`json\n${toolContent}\n\`\`\``,
+            });
+          } else if (toolToCli.has(toolCall.name)) {
+            // ── Ramo CLI (novo) ──
+            await octokit.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: task.issue.number,
+              body: `> ⚙️ **${agentDef.role}** (GitCompany-AI)\n\nExecutando ferramenta CLI **${toolCall.name}**...`,
+            });
+
+            const r = await executeCliToolCall({
+              toolCall,
+              cliTools: agentDef.cliTools!,
+              resolvedSecrets: await ensureSecrets(),
+              companyId,
+              agentId: agentDef.agentId,
+              agentName: agentDef.role,
+            });
+
+            toolContent = JSON.stringify(
+              r.success
+                ? { success: true, exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr }
+                : { success: false, error: r.error }
+            );
+
+            await octokit.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: task.issue.number,
+              body: `> 📋 **${agentDef.role}** (GitCompany-AI)\n\nResultado da CLI **${toolCall.name}**:\n\n\`\`\`\n${r.stdout ?? r.error ?? ""}\n\`\`\``,
+            });
+          } else {
+            // Ferramenta sem origem conhecida (nem MCP nem CLI).
+            toolContent = JSON.stringify({
+              success: false,
+              error: `Nenhuma ferramenta disponível para "${toolCall.name}".`,
+            });
+          }
 
           // Realimenta o resultado como ToolMessage para a próxima iteração.
           messages.push(
