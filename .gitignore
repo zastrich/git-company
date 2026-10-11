@@ -63,3 +63,9 @@ AGENTS.md
 
 # specs/docs (not code)
 *.pdf
+
+# extensões/plugins locais (integrações específicas do usuário — NUNCA versionar)
+# Cada extensão tem seu próprio package.json e node_modules; o core não as conhece.
+# A config das ferramentas (cliTools/mcpServers) vive no DB/business.json e apenas
+# REFERENCIA os scripts aqui; a implementação é local, como um plugin.
+/extensions/
