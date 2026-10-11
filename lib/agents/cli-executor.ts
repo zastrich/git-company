@@ -20,10 +20,13 @@
 //     entrar em auditoria OU no ToolMessage/CliCallResult.
 
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { createAuditLog } from "../db/audit";
 import { interpolateSecrets } from "../db/secrets";
+import { projectRoot } from "../runtime-paths";
 import { CliToolConfig } from "../baac/types";
 
 // ── Constantes ──
@@ -174,6 +177,76 @@ export function cliToolsToLangChain(
   return result;
 }
 
+/**
+ * Resolve, em tempo de execução, o launcher real a ser passado para execFile —
+ * SEM shell, mantendo a segurança do argv (cada valor da LLM continua sendo
+ * exatamente um slot). Implementa uma convenção de SENTINELAS documentada e
+ * portável, que NUNCA grava caminhos absolutos no banco:
+ *
+ *   (a) command === "node"  → process.execPath (o executável Node em uso).
+ *       Isso evita o bug de ENOENT no Windows ao tentar spawnar um shim .cmd:
+ *       usamos o binário Node real diretamente.
+ *
+ *   (b) argv[0] === "tsx"    → substituído pelo CAMINHO ABSOLUTO do CLI entry
+ *       do tsx resolvido em runtime. Ordem de busca (lookup order):
+ *         1º  <projectRoot>/extensions/node_modules/tsx/dist/cli.mjs  (plugin)
+ *         2º  <projectRoot>/node_modules/tsx/dist/cli.mjs             (core)
+ *       Preferimos a cópia de extensions/ para que o processo-filho enxergue
+ *       as dependências do plugin. Usamos o entry .mjs do tsx (e não o shim
+ *       .bin/tsx[.cmd]) justamente para que execFile funcione no Windows sem
+ *       precisar de shell/cmd /c. Se nenhuma cópia existir, "tsx" passa adiante
+ *       inalterado (a execução falhará de forma observável, sem mascarar).
+ *
+ *   (c) qualquer elemento do argv que seja um caminho RELATIVO ao workspace de
+ *       um arquivo EXISTENTE (ex.: "extensions/google/google-cli.mts") é
+ *       resolvido para absoluto contra projectRoot() de lib/runtime-paths.ts.
+ *       O scheduler e o dev-server rodam com cwd = raiz do repo, então
+ *       projectRoot() resolve o workspace corretamente. Caminhos já absolutos,
+ *       inexistentes ou que não batem com a sentinela passam inalterados.
+ *
+ * Comandos comuns (gh, git, node-como-exe) e argv não-sentinela passam SEM
+ * alteração em TODAS as plataformas; o comportamento em não-Windows é
+ * byte-idêntico ao anterior para comandos simples.
+ *
+ * FOLLOW-UP adiado (NÃO implementado): suporte genérico a shims .cmd/.bat via
+ * shell. A sentinela node+tsx remove a necessidade de spawnar shims .cmd, então
+ * NÃO adicionamos shell:true / cmd /c / sh -c aqui (injeção continua impossível).
+ */
+export function resolveSpawn(
+  command: string,
+  argv: string[]
+): { command: string; argv: string[] } {
+  const root = projectRoot();
+
+  // (a) sentinela "node" → executável Node real em uso.
+  const resolvedCommand = command === "node" ? process.execPath : command;
+
+  const resolvedArgv = argv.map((arg, i) => {
+    // (b) sentinela "tsx" como PRIMEIRO argumento → CLI entry absoluto do tsx.
+    if (i === 0 && arg === "tsx") {
+      const candidates = [
+        path.join(root, "extensions", "node_modules", "tsx", "dist", "cli.mjs"),
+        path.join(root, "node_modules", "tsx", "dist", "cli.mjs"),
+      ];
+      const found = candidates.find((p) => fs.existsSync(p));
+      return found ?? arg; // sem cópia: passa adiante (falha observável).
+    }
+
+    // (c) caminho relativo ao workspace de arquivo existente → absoluto.
+    //     Só mexe quando NÃO é absoluto e o arquivo existe na raiz do projeto;
+    //     assim valores arbitrários da LLM (que não apontam arquivo real) ficam
+    //     intactos como um único slot — injeção permanece impossível.
+    if (arg && !path.isAbsolute(arg)) {
+      const abs = path.join(root, arg);
+      if (fs.existsSync(abs)) return abs;
+    }
+
+    return arg;
+  });
+
+  return { command: resolvedCommand, argv: resolvedArgv };
+}
+
 interface ExecResult {
   stdout: string;
   stderr: string;
@@ -181,17 +254,22 @@ interface ExecResult {
   error?: Error & { code?: number; killed?: boolean };
 }
 
-/** Executa execFile dentro de uma Promise — SEM shell. */
+/**
+ * Executa execFile dentro de uma Promise — SEM shell. O launcher real é
+ * resolvido por resolveSpawn (sentinelas node/tsx + caminhos de workspace),
+ * mantendo cada valor da LLM como exatamente um slot do argv.
+ */
 function runExecFile(
   command: string,
   argv: string[],
   env: Record<string, string>,
   timeout: number
 ): Promise<ExecResult> {
+  const resolved = resolveSpawn(command, argv);
   return new Promise((resolve) => {
     execFile(
-      command,
-      argv,
+      resolved.command,
+      resolved.argv,
       { timeout, maxBuffer: MAX_BUFFER, env: { ...process.env, ...env } },
       (error, stdout, stderr) => {
         const so = typeof stdout === "string" ? stdout : String(stdout ?? "");
