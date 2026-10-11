@@ -2,7 +2,7 @@
 // Single Responsibility: Execute a single agent tick cycle.
 
 import { AgentConfig, AIProvider } from "@prisma/client";
-import { LLMConfig, AgentDefinition } from "../baac/types";
+import { LLMConfig, AgentDefinition, McpServerConfig } from "../baac/types";
 import { runAgentCycle } from "../agents/orchestrator";
 import { prisma } from "../db/client";
 import { applySecrets } from "../db/secrets";
@@ -50,6 +50,18 @@ export function toAgentDefinition(
       : (providerKeyMap[provider.type] ?? "");
   const apiKey = secretKey ? (secrets.get(secretKey) ?? "") : undefined;
 
+  // Parse da config de MCP Servers (JSON string) com fallback seguro
+  let mcpServers: McpServerConfig[] = [];
+  if (agentConfig.mcpServers) {
+    try {
+      const parsed = JSON.parse(agentConfig.mcpServers);
+      mcpServers = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      console.warn(`[agent-runner] mcpServers inválido para o agente "${agentConfig.agentId}", ignorando.`);
+      mcpServers = [];
+    }
+  }
+
   const llmConfig: LLMConfig = {
     provider: provider.type as LLMConfig["provider"],
     model: agentConfig.model,
@@ -68,6 +80,7 @@ export function toAgentDefinition(
     tickIntervalSeconds: agentConfig.tickIntervalSeconds,
     labels: agentConfig.labels ? agentConfig.labels.split(",").map((l) => l.trim()).filter(Boolean) : [],
     subordinates: agentConfig.subordinates ? agentConfig.subordinates.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+    mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
   };
 }
 

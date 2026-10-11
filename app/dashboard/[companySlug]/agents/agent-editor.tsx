@@ -19,6 +19,7 @@ export interface AgentEditValue {
   subordinates: string;
   isCeo: boolean;
   githubUsername: string;
+  mcpServersJson: string;
 }
 
 export function AgentEditor({
@@ -51,7 +52,9 @@ export function AgentEditor({
     subordinates: initial?.subordinates ?? "",
     isCeo: initial?.isCeo ?? false,
     githubUsername: initial?.githubUsername ?? "",
+    mcpServersJson: initial?.mcpServersJson ?? "[]",
   });
+  const [mcpJsonError, setMcpJsonError] = useState("");
 
   const isHuman = v.type === "human";
   const inputCls =
@@ -69,14 +72,28 @@ export function AgentEditor({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setMsg("");
+
+    let mcpServers: unknown[] = [];
+    if (!isHuman) {
+      try {
+        const parsed = JSON.parse(v.mcpServersJson || "[]");
+        if (!Array.isArray(parsed)) throw new Error("não é um array");
+        mcpServers = parsed;
+      } catch {
+        setMsg("Config de MCP Servers inválida — corrija o JSON antes de salvar.");
+        return;
+      }
+    }
+
+    setSaving(true);
     try {
       const method = mode === "create" ? "POST" : "PUT";
+      const { mcpServersJson, ...rest } = v;
       const res = await fetch(`/api/company/${companySlug}/agents`, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(v),
+        body: JSON.stringify({ ...rest, mcpServers }),
       });
       const data = await res.json();
       if (!res.ok) { setMsg(data.error ?? "Erro ao salvar."); return; }
@@ -196,6 +213,37 @@ export function AgentEditor({
                   )}
                 </div>
               </div>
+
+              {/* MCP Servers (JSON) */}
+              {!isHuman && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">MCP Servers (JSON)</label>
+                  <textarea
+                    value={v.mcpServersJson}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      set("mcpServersJson", val);
+                      try {
+                        const parsed = JSON.parse(val || "[]");
+                        if (!Array.isArray(parsed)) throw new Error();
+                        setMcpJsonError("");
+                      } catch {
+                        setMcpJsonError("JSON inválido — informe um array de MCP Servers.");
+                      }
+                    }}
+                    rows={6}
+                    className={`${inputCls} font-mono`}
+                    placeholder={'[\n  {\n    "id": "google-calendar",\n    "name": "Google Agenda",\n    "transport": "stdio",\n    "command": "npx",\n    "args": ["-y", "@exemplo/mcp-google-calendar"],\n    "env": { "GOOGLE_TOKEN": "{{GOOGLE_TOKEN}}" }\n  }\n]'}
+                  />
+                  {mcpJsonError ? (
+                    <p className="text-xs text-red-400 mt-1">{mcpJsonError}</p>
+                  ) : (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Lista de MCP Servers disponíveis para o agente. Use <code className="font-mono">{"{{NOME_DO_SECRET}}"}</code> para referenciar secrets da empresa (nunca cole valores reais aqui).
+                    </p>
+                  )}
+                </div>
+              )}
 
               {msg && <p className="text-sm text-red-400">{msg}</p>}
 

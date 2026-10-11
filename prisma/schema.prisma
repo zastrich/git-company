@@ -78,6 +78,7 @@ model AgentConfig {
   isPaused            Boolean  @default(false)       // Paused = scheduler ignora
   isCeo               Boolean  @default(false)       // Marca o CEO da empresa
   githubUsername      String   @default("")          // GitHub username (para humans)
+  mcpServers          String   @default("")          // Config de MCP Servers (JSON string)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

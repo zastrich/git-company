@@ -19,6 +19,21 @@ export interface LLMConfig {
 }
 
 // ─────────────────────────────────────────────
+// MCP Server Configuration
+// ─────────────────────────────────────────────
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  transport: "stdio" | "sse" | "streamable-http";
+  command?: string;
+  args?: string[];
+  url?: string;
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+}
+
+// ─────────────────────────────────────────────
 // Agent / Member Definition
 // ─────────────────────────────────────────────
 
@@ -41,6 +56,8 @@ export interface AgentDefinition {
   subordinates?: string[];
   /** GitHub username (para humans — usado em assignees) */
   githubUsername?: string;
+  /** MCP Servers que este agente pode utilizar via LLM */
+  mcpServers?: McpServerConfig[];
 }
 
 // ─────────────────────────────────────────────

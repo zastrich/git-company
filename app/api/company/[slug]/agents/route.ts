@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/db/client";
 import { createAuditLog } from "../../../../../lib/db/audit";
 import { markDirty } from "../../../../../lib/sync/dirty";
+import { McpServerConfig } from "../../../../../lib/baac/types";
 
 async function resolveCompany(slug: string) {
   return prisma.company.findUnique({ where: { slug } });
@@ -25,6 +26,7 @@ interface AgentBody {
   subordinates?: string; // csv de agentIds
   isCeo?: boolean;
   githubUsername?: string;
+  mcpServers?: McpServerConfig[];
 }
 
 async function providerIdFromSlug(slug: string | null | undefined): Promise<string | null> {
@@ -73,6 +75,7 @@ export async function POST(
       subordinates: body?.subordinates ?? "",
       isCeo: Boolean(body?.isCeo),
       githubUsername: body?.githubUsername ?? "",
+      mcpServers: JSON.stringify(body?.mcpServers ?? []),
     },
   });
 
@@ -116,6 +119,7 @@ export async function PUT(
   if (body?.subordinates !== undefined) data.subordinates = body.subordinates;
   if (body?.isCeo !== undefined) data.isCeo = Boolean(body.isCeo);
   if (body?.githubUsername !== undefined) data.githubUsername = body.githubUsername;
+  if (body?.mcpServers !== undefined) data.mcpServers = JSON.stringify(body.mcpServers);
 
   await prisma.agentConfig.update({ where: { id: agent.id }, data });
   await markDirty(company.id);

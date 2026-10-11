@@ -5,6 +5,16 @@ import { AgentPauseButton } from "./agent-pause-button";
 import { AgentEditor } from "./agent-editor";
 import { AgentDeleteButton } from "./agent-delete-button";
 
+// Deserializa a config de MCP Servers de forma segura para pré-carregar no editor.
+function safeMcpJson(raw: string | null | undefined): string {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return JSON.stringify(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return "[]";
+  }
+}
+
 export default async function AgentsPage(props: {
   params: Promise<{ companySlug: string }>;
 }) {
@@ -98,6 +108,7 @@ export default async function AgentsPage(props: {
                     subordinates: agent.subordinates,
                     isCeo: agent.isCeo,
                     githubUsername: agent.githubUsername,
+                    mcpServersJson: safeMcpJson(agent.mcpServers),
                   }}
                 />
                 <AgentDeleteButton companySlug={company.slug} agentId={agent.agentId} role={agent.role} />

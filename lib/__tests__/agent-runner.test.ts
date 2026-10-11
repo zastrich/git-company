@@ -28,6 +28,7 @@ describe("Agent Runner - toAgentDefinition", () => {
     tickIntervalSeconds: 600,
     labels: "backend,api,database",
     subordinates: "junior-dev,intern",
+    mcpServers: "",
     isPaused: false,
     isCeo: false,
     createdAt: new Date(),
@@ -93,5 +94,32 @@ describe("Agent Runner - toAgentDefinition", () => {
     const config = { ...mockAgentConfig, type: "human", provider: null };
     const result = toAgentDefinition(config as any, secrets);
     expect(result).toBeNull();
+  });
+
+  it("should parse mcpServers from valid JSON string", () => {
+    const mcp = [
+      { id: "gcal", name: "Google Agenda", transport: "stdio", command: "npx", args: ["-y", "mcp-gcal"] },
+    ];
+    const config = { ...mockAgentConfig, mcpServers: JSON.stringify(mcp) };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.mcpServers).toEqual(mcp);
+  });
+
+  it("should return undefined mcpServers when string is empty", () => {
+    const config = { ...mockAgentConfig, mcpServers: "" };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.mcpServers).toBeUndefined();
+  });
+
+  it("should return undefined mcpServers when string is an empty array", () => {
+    const config = { ...mockAgentConfig, mcpServers: "[]" };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.mcpServers).toBeUndefined();
+  });
+
+  it("should return undefined mcpServers when JSON is invalid", () => {
+    const config = { ...mockAgentConfig, mcpServers: "{not valid json" };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.mcpServers).toBeUndefined();
   });
 });
