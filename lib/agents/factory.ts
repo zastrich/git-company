@@ -1,8 +1,8 @@
 // lib/agents/factory.ts
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { StringOutputParser } from "@langchain/core/output_parsers";
-import { RunnableSequence } from "@langchain/core/runnables";
-import { AgentDefinition, IssueContext } from "../baac/types";
+import { AIMessage, BaseMessage } from "@langchain/core/messages";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+import { AgentDefinition, IssueContext, McpServerConfig } from "../baac/types";
 import { createLLM } from "./llm-factory";
 
 export interface StageRule {
@@ -20,12 +20,22 @@ export interface AgentRunInput {
   stageRules?: StageRule[];
   /** Nome da etapa atual do card (derivada da label stage::). */
   currentStage?: string;
+  /** Ferramentas (incluindo MCP) disponibilizadas à LLM via bindTools. */
+  tools?: StructuredToolInterface[];
+  /** MCP Servers que originaram as `tools` (para rastreamento/orquestração). */
+  mcpServers?: McpServerConfig[];
+  /** Mensagens anteriores da conversa, prefixadas ao prompt quando presentes. */
+  priorMessages?: BaseMessage[];
 }
 
 export interface AgentRunResult {
   agentId: string;
   role: string;
   response: string;
+  /** Tool calls emitidas pela LLM (quando há ferramentas vinculadas). */
+  toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> }>;
+  /** Mensagem bruta da LLM (preserva metadados de tool_calls). */
+  rawMessage?: AIMessage;
 }
 
 /**
@@ -119,19 +129,69 @@ REGRAS ABSOLUTAS:
     ],
   ]);
 
-  const chain = RunnableSequence.from([prompt, llm, new StringOutputParser()]);
-
   const contextBlock = buildContextBlock(input.issueContext, input.stageRules, input.currentStage);
 
-  const response = await chain.invoke({
+  const formatted = await prompt.formatMessages({
     role: agentDef.role,
     agentContext: agentDef.context,
     contextBlock,
   });
 
+  // Prepende mensagens anteriores (histórico da conversa), se houver.
+  const messages: BaseMessage[] =
+    input.priorMessages && input.priorMessages.length > 0
+      ? [...input.priorMessages, ...formatted]
+      : formatted;
+
+  // Sem ferramentas, llmToUse === llm — caminho preservado 1:1.
+  // bindTools é opcional no tipo BaseChatModel, mas todos os chat models
+  // suportados o implementam (ver llm-factory).
+  const llmToUse =
+    input.tools?.length && llm.bindTools
+      ? llm.bindTools(input.tools)
+      : llm;
+
+  const rawMessage = (await llmToUse.invoke(messages)) as AIMessage;
+
+  // Deriva a string de resposta a partir de content (string ou content-parts),
+  // reproduzindo o que o StringOutputParser produzia.
+  const response = extractText(rawMessage.content);
+
+  const toolCalls =
+    rawMessage.tool_calls && rawMessage.tool_calls.length > 0
+      ? rawMessage.tool_calls.map((tc) => ({
+          id: tc.id ?? "",
+          name: tc.name,
+          args: tc.args as Record<string, unknown>,
+        }))
+      : undefined;
+
   return {
     agentId: agentDef.agentId,
     role: agentDef.role,
     response,
+    toolCalls,
+    rawMessage,
   };
+}
+
+/**
+ * Extrai texto do campo `content` de uma AIMessage, aceitando string simples
+ * ou um array de content-parts (multimodal). Reproduz o comportamento do
+ * antigo StringOutputParser para o caminho sem ferramentas.
+ */
+function extractText(content: AIMessage["content"]): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && "text" in part) {
+          return String((part as { text: unknown }).text ?? "");
+        }
+        return "";
+      })
+      .join("");
+  }
+  return "";
 }
