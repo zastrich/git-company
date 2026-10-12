@@ -69,3 +69,6 @@ AGENTS.md
 # A config das ferramentas (cliTools/mcpServers) vive no DB/business.json e apenas
 # REFERENCIA os scripts aqui; a implementação é local, como um plugin.
 /extensions/
+
+# artefatos do Playwright MCP (snapshots/screenshots de navegação)
+/.playwright-mcp/
