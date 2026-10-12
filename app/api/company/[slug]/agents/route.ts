@@ -34,6 +34,7 @@ interface AgentBody {
   mcpServers?: McpServerConfig[];
   cliTools?: CliToolConfig[];
   contextFiles?: string[];
+  contextMarkdown?: string;
 }
 
 async function providerIdFromSlug(slug: string | null | undefined): Promise<string | null> {
@@ -85,6 +86,7 @@ export async function POST(
       mcpServers: JSON.stringify(asArray(body?.mcpServers)),
       cliTools: JSON.stringify(asArray(body?.cliTools)),
       contextFiles: JSON.stringify(asStringArray(body?.contextFiles)),
+      contextMarkdown: body?.contextMarkdown ?? "",
     },
   });
 
@@ -131,6 +133,7 @@ export async function PUT(
   if (body?.mcpServers !== undefined) data.mcpServers = JSON.stringify(asArray(body.mcpServers));
   if (body?.cliTools !== undefined) data.cliTools = JSON.stringify(asArray(body.cliTools));
   if (body?.contextFiles !== undefined) data.contextFiles = JSON.stringify(asStringArray(body.contextFiles));
+  if (body?.contextMarkdown !== undefined) data.contextMarkdown = body.contextMarkdown;
 
   await prisma.agentConfig.update({ where: { id: agent.id }, data });
   await markDirty(company.id);

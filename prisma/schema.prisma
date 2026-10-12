@@ -81,6 +81,7 @@ model AgentConfig {
   mcpServers          String   @default("")          // Config de MCP Servers (JSON string)
   cliTools            String   @default("")          // Config de ferramentas CLI (JSON string)
   contextFiles        String   @default("")          // Caminhos .md de contexto grande (JSON string)
+  contextMarkdown     String   @default("")          // Contexto longo em Markdown (convenção agents/<id>.md)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

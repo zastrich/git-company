@@ -87,6 +87,7 @@ function makeBusiness(): BusinessConfig {
         subordinates: [],
         cliTools: cli,
         contextFiles: ["docs/agenda.md"],
+        contextMarkdown: "# Contexto longo da Agenda\n\nTemplate padronizado.",
         isCeo: true,
       },
       {
@@ -162,6 +163,12 @@ describe("Modular - round-trip de cliTools/mcpServers/contextFiles", () => {
     // Sem mcpServers → omitido do JSON.
     expect("mcpServers" in agenda).toBe(false);
     expect(agenda.isCeo).toBe(true);
+    // contextMarkdown NÃO entra no JSON — vive em agents/<id>.md.
+    expect("contextMarkdown" in agenda).toBe(false);
+    expect(repoFiles.get("agents/agente-agenda.md")).toBe("# Contexto longo da Agenda\n\nTemplate padronizado.");
+    // Agente sem contextMarkdown → nenhum .md gerado.
+    expect(repoFiles.has("agents/agente-notion.md")).toBe(false);
+    expect(repoFiles.has("agents/agente-simples.md")).toBe(false);
 
     const notion = JSON.parse(repoFiles.get("agents/agente-notion.json")!);
     expect(notion.mcpServers).toEqual(mcp);
@@ -196,13 +203,18 @@ describe("Modular - round-trip de cliTools/mcpServers/contextFiles", () => {
     expect(agenda.cliTools).toEqual(cli);
     expect(agenda.contextFiles).toEqual(["docs/agenda.md"]);
     expect(agenda.isCeo).toBe(true);
+    // contextMarkdown reconstruído a partir de agents/agente-agenda.md.
+    expect(agenda.contextMarkdown).toBe("# Contexto longo da Agenda\n\nTemplate padronizado.");
 
     const notion = business!.agents.find((a) => a.agentId === "agente-notion")!;
     expect(notion.mcpServers).toEqual(mcp);
+    // Sem .md → contextMarkdown permanece indefinido.
+    expect(notion.contextMarkdown).toBeUndefined();
 
     const simples = business!.agents.find((a) => a.agentId === "agente-simples")!;
     expect(simples.cliTools).toBeUndefined();
     expect(simples.mcpServers).toBeUndefined();
     expect(simples.contextFiles).toBeUndefined();
+    expect(simples.contextMarkdown).toBeUndefined();
   });
 });

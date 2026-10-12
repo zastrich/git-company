@@ -81,6 +81,99 @@ describe("context-loader - sandbox", () => {
   });
 });
 
+describe("context-loader - convenção agents/<id>.md + curto/longo", () => {
+  it("auto-carrega agents/<agentId>.md mesmo sem contextFiles", () => {
+    fs.mkdirSync(path.join(tmp, "agents"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "agents", "x.md"), "contexto longo do X");
+
+    const out = assembleAgentContext(
+      { agentId: "x", context: "curto" },
+      { workspaceRoot: tmp }
+    );
+
+    expect(out).toContain("curto");
+    expect(out).toContain("## Contexto longo (Markdown)");
+    expect(out).toContain("## Contexto adicional: agents/x.md");
+    expect(out).toContain("contexto longo do X");
+  });
+
+  it("short + long ambos presentes: curto vem ANTES do delimitador longo", () => {
+    fs.mkdirSync(path.join(tmp, "agents"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "agents", "x.md"), "LONGO");
+
+    const out = assembleAgentContext(
+      { agentId: "x", context: "CURTO" },
+      { workspaceRoot: tmp }
+    );
+
+    const idxShort = out.indexOf("CURTO");
+    const idxDelim = out.indexOf("## Contexto longo (Markdown)");
+    const idxLong = out.indexOf("LONGO");
+    expect(idxShort).toBeGreaterThanOrEqual(0);
+    expect(idxDelim).toBeGreaterThan(idxShort);
+    expect(idxLong).toBeGreaterThan(idxDelim);
+  });
+
+  it("não duplica quando agents/<id>.md também está em contextFiles", () => {
+    fs.mkdirSync(path.join(tmp, "agents"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "agents", "x.md"), "CONTEUDO_UNICO");
+
+    const out = assembleAgentContext(
+      { agentId: "x", context: "curto", contextFiles: ["agents/x.md"] },
+      { workspaceRoot: tmp }
+    );
+
+    const occurrences = out.split("CONTEUDO_UNICO").length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  it("contextMarkdown (valor do banco) suprime o auto-load da convenção", () => {
+    fs.mkdirSync(path.join(tmp, "agents"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "agents", "x.md"), "DO_DISCO");
+
+    const out = assembleAgentContext(
+      { agentId: "x", context: "curto", contextMarkdown: "DO_BANCO" },
+      { workspaceRoot: tmp }
+    );
+
+    expect(out).toContain("DO_BANCO");
+    expect(out).not.toContain("DO_DISCO");
+    expect(out).not.toContain("## Contexto adicional: agents/x.md");
+  });
+
+  it("só-longo (context vazio + contextMarkdown) não prefixa descrição curta", () => {
+    const out = assembleAgentContext(
+      { agentId: "x", context: "", contextMarkdown: "APENAS_LONGO" },
+      { workspaceRoot: tmp }
+    );
+
+    expect(out.startsWith("## Contexto longo (Markdown)")).toBe(true);
+    expect(out).toContain("APENAS_LONGO");
+  });
+
+  it("short-only (sem nenhum contexto longo) retorna context inalterado", () => {
+    expect(
+      assembleAgentContext({ agentId: "x", context: "só curto" }, { workspaceRoot: tmp })
+    ).toBe("só curto");
+  });
+
+  it("agentId com traversal (../evil) não lê arquivo fora do sandbox", () => {
+    const parent = path.dirname(tmp);
+    const outside = path.join(parent, "evil.md");
+    fs.writeFileSync(outside, "SEGREDO_FORA");
+    try {
+      const out = assembleAgentContext(
+        { agentId: "../evil", context: "curto" },
+        { workspaceRoot: tmp }
+      );
+      expect(out).toBe("curto");
+      expect(out).not.toContain("SEGREDO_FORA");
+    } finally {
+      fs.rmSync(outside, { force: true });
+    }
+  });
+});
+
 describe("context-loader - cap/truncamento (M2)", () => {
   it("trunca com marcador exato quando o total excede maxChars", () => {
     fs.writeFileSync(path.join(tmp, "grande.md"), "y".repeat(500));

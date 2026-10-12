@@ -94,6 +94,8 @@ export interface AgentDefinition {
   cliTools?: CliToolConfig[];
   /** Caminhos .md (relativos ao workspace) com contexto grande do agente */
   contextFiles?: string[];
+  /** Markdown de contexto longo (convenção agents/<agentId>.md); projetado para o repo e carregado como contexto longo. */
+  contextMarkdown?: string;
   /**
    * True quando este agente é o CEO/raiz do organograma.
    * Persistido APENAS para round-trip do business.json — não é propriedade

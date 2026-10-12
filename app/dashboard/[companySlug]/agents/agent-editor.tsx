@@ -12,6 +12,7 @@ export interface AgentEditValue {
   role: string;
   type: "ai" | "human";
   context: string;
+  contextMarkdown: string;
   providerSlug: string | null;
   model: string;
   tickIntervalSeconds: number;
@@ -47,6 +48,7 @@ export function AgentEditor({
     role: initial?.role ?? "",
     type: initial?.type ?? "ai",
     context: initial?.context ?? "",
+    contextMarkdown: initial?.contextMarkdown ?? "",
     providerSlug: initial?.providerSlug ?? (providers[0]?.slug ?? null),
     model: initial?.model ?? "",
     tickIntervalSeconds: initial?.tickIntervalSeconds ?? 3600,
@@ -201,8 +203,19 @@ export function AgentEditor({
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Escopo / instruções</label>
-                <textarea value={v.context} onChange={(e) => set("context", e.target.value)} rows={3} className={inputCls} />
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Descrição curta</label>
+                <textarea value={v.context} onChange={(e) => set("context", e.target.value)} rows={3} className={inputCls} placeholder="Escopo / instruções curtas do agente" />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Resumo do escopo do agente. Enviado primeiro no contexto. Quando houver contexto longo, ambos vão juntos.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-400 uppercase mb-1">Contexto longo (Markdown)</label>
+                <textarea value={v.contextMarkdown} onChange={(e) => set("contextMarkdown", e.target.value)} rows={8} className={`${inputCls} font-mono`} placeholder={"# Contexto detalhado\n\nInstruções completas, templates e exemplos em Markdown…"} />
+                <p className="text-xs text-zinc-500 mt-1">
+                  Contexto detalhado em Markdown. Salvo em <code className="font-mono">agents/{v.agentId || "<id>"}.md</code> na sincronização e carregado automaticamente, mesmo sem constar nos arquivos de contexto.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

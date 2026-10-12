@@ -124,6 +124,7 @@ export async function buildLocalBusinessJson(companyId: string): Promise<Busines
     mcpServers: parseJsonArray<McpServerConfig>(a.mcpServers),
     cliTools: parseJsonArray<CliToolConfig>(a.cliTools),
     contextFiles: parseJsonArray<string>(a.contextFiles),
+    contextMarkdown: a.contextMarkdown || undefined,
   }));
 
   // Construir orgChart
@@ -276,6 +277,7 @@ export async function pullFromRemote(companyId: string): Promise<SyncResult> {
         mcpServers: JSON.stringify(agentDef.mcpServers ?? []),
         cliTools: JSON.stringify(agentDef.cliTools ?? []),
         contextFiles: JSON.stringify(agentDef.contextFiles ?? []),
+        contextMarkdown: agentDef.contextMarkdown ?? "",
       };
 
       await prisma.agentConfig.upsert({

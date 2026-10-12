@@ -132,8 +132,9 @@ REGRAS ABSOLUTAS:
 
   const contextBlock = buildContextBlock(input.issueContext, input.stageRules, input.currentStage);
 
-  // Contexto montado em camadas (inline + arquivos .md). Sem contextFiles,
-  // retorna agentDef.context inalterado — comportamento preservado.
+  // Contexto montado em camadas (descrição curta + contexto longo: markdown
+  // do banco, convenção agents/<id>.md e arquivos .md). Sem nenhum contexto
+  // longo, retorna agentDef.context inalterado — comportamento preservado.
   const assembledContext = assembleAgentContext(agentDef);
 
   const formatted = await prompt.formatMessages({

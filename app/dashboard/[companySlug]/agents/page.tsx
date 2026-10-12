@@ -101,6 +101,7 @@ export default async function AgentsPage(props: {
                     role: agent.role,
                     type: (agent.type === "human" ? "human" : "ai"),
                     context: agent.context,
+                    contextMarkdown: agent.contextMarkdown,
                     providerSlug: agent.provider?.slug ?? null,
                     model: agent.model,
                     tickIntervalSeconds: agent.tickIntervalSeconds,

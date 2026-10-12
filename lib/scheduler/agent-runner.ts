@@ -87,6 +87,7 @@ export function toAgentDefinition(
     mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
     cliTools,
     contextFiles,
+    contextMarkdown: agentConfig.contextMarkdown || undefined,
   };
 }
 

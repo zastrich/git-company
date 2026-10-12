@@ -31,6 +31,7 @@ describe("Agent Runner - toAgentDefinition", () => {
     mcpServers: "",
     cliTools: "",
     contextFiles: "",
+    contextMarkdown: "",
     isPaused: false,
     isCeo: false,
     createdAt: new Date(),
@@ -150,5 +151,17 @@ describe("Agent Runner - toAgentDefinition", () => {
     expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "" } as any, secrets)!.contextFiles).toBeUndefined();
     expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "[]" } as any, secrets)!.contextFiles).toBeUndefined();
     expect(toAgentDefinition({ ...mockAgentConfig, contextFiles: "{bad" } as any, secrets)!.contextFiles).toBeUndefined();
+  });
+
+  it("should surface a non-empty contextMarkdown on the AgentDefinition", () => {
+    const config = { ...mockAgentConfig, contextMarkdown: "# Contexto longo" };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.contextMarkdown).toBe("# Contexto longo");
+  });
+
+  it("should return undefined contextMarkdown when empty", () => {
+    const config = { ...mockAgentConfig, contextMarkdown: "" };
+    const result = toAgentDefinition(config as any, secrets);
+    expect(result!.contextMarkdown).toBeUndefined();
   });
 });

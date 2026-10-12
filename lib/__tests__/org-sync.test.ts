@@ -102,6 +102,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
         mcpServers: JSON.stringify(mcp),
         cliTools: JSON.stringify(cli),
         contextFiles: JSON.stringify(["docs/x.md"]),
+        contextMarkdown: "# Longo do diretor",
       },
       {
         agentId: "sub",
@@ -120,6 +121,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
         mcpServers: "",
         cliTools: "[]",
         contextFiles: "",
+        contextMarkdown: "",
       },
     ]);
 
@@ -131,6 +133,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
     expect(ceo.mcpServers).toEqual(mcp);
     expect(ceo.cliTools).toEqual(cli);
     expect(ceo.contextFiles).toEqual(["docs/x.md"]);
+    expect(ceo.contextMarkdown).toBe("# Longo do diretor");
     // orgChart.ceo derivado da mesma coluna isCeo.
     expect(result.orgChart?.ceo.agentId).toBe("diretor-geral");
 
@@ -139,6 +142,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
     expect(sub.mcpServers).toBeUndefined();
     expect(sub.cliTools).toBeUndefined();
     expect(sub.contextFiles).toBeUndefined();
+    expect(sub.contextMarkdown).toBeUndefined();
   });
 
   it("pullFromRemote preserva isCeo e grava ferramentas como strings JSON", async () => {
@@ -161,6 +165,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
           mcpServers: mcp,
           cliTools: cli,
           contextFiles: ["docs/x.md"],
+          contextMarkdown: "# Longo do diretor",
         },
       ],
       infrastructure: { labels: [], milestones: [], project: { title: "", views: [], columns: [] }, workflows: [] },
@@ -175,6 +180,7 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
     expect(JSON.parse(arg.update.mcpServers)).toEqual(mcp);
     expect(JSON.parse(arg.update.cliTools)).toEqual(cli);
     expect(JSON.parse(arg.update.contextFiles)).toEqual(["docs/x.md"]);
+    expect(arg.update.contextMarkdown).toBe("# Longo do diretor");
   });
 
   it("pullFromRemote: JSON antigo sem isCeo cai no fallback agentId === 'ceo'", async () => {

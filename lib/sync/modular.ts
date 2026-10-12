@@ -37,8 +37,11 @@ function serializeAgent(agent: AgentDefinition): AgentDefinition {
   const mcpServers = nonEmptyArray<McpServerConfig>(agent.mcpServers);
   const cliTools = nonEmptyArray<CliToolConfig>(agent.cliTools);
   const contextFiles = nonEmptyArray<string>(agent.contextFiles);
+  // contextMarkdown NÃO entra no JSON do agente — vive em agents/<id>.md.
+  // Removido do objeto serializado para manter o .json byte-a-byte idêntico.
+  const { contextMarkdown: _contextMarkdown, ...rest } = agent;
   return {
-    ...agent,
+    ...rest,
     mcpServers,
     cliTools,
     contextFiles,
@@ -107,6 +110,17 @@ async function getJson<T>(octokit: Octokit, owner: string, repo: string, path: s
   }
 }
 
+/** Lê um arquivo texto bruto do repositório (ou null quando ausente). */
+async function getText(octokit: Octokit, owner: string, repo: string, path: string): Promise<string | null> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path });
+    if (Array.isArray(data) || (data as any).type !== "file") return null;
+    return Buffer.from((data as any).content, "base64").toString("utf-8");
+  } catch {
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────
 // PUSH modular
 // ─────────────────────────────────────────────
@@ -129,6 +143,12 @@ export async function pushModular(
     const path = `agents/${agent.agentId}.json`;
     agentRefs.push({ agentId: agent.agentId, path });
     await putFile(octokit, owner, repo, path, JSON.stringify(serializeAgent(agent), null, 2), `Sync: agent ${agent.agentId}`);
+
+    // Contexto longo (Markdown) → agents/<agentId>.md. Só escreve quando
+    // não-vazio, preservando saída byte-a-byte para agentes short-only.
+    if (typeof agent.contextMarkdown === "string" && agent.contextMarkdown.length > 0) {
+      await putFile(octokit, owner, repo, `agents/${agent.agentId}.md`, agent.contextMarkdown, `Sync: agent ${agent.agentId} (contexto longo)`);
+    }
   }
 
   // 2. workflow.json com contexto por etapa
@@ -191,7 +211,12 @@ export async function pullModular(
   const agents: AgentDefinition[] = [];
   for (const ref of index.agentRefs ?? []) {
     const agent = await getJson<AgentDefinition>(octokit, owner, repo, ref.path);
-    if (agent) agents.push(agent);
+    if (agent) {
+      // Reconstrói o contexto longo a partir de agents/<agentId>.md, quando existir.
+      const md = await getText(octokit, owner, repo, `agents/${agent.agentId}.md`);
+      if (md !== null) agent.contextMarkdown = md;
+      agents.push(agent);
+    }
   }
 
   // Carrega workflow
