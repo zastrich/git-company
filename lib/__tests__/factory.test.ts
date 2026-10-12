@@ -1,6 +1,6 @@
 // lib/__tests__/factory.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { AIMessage } from "@langchain/core/messages";
+import { AIMessage, BaseMessage, ToolMessage } from "@langchain/core/messages";
 import { buildContextBlock, runAgent } from "../agents/factory";
 import { IssueContext, AgentDefinition } from "../baac/types";
 
@@ -174,5 +174,61 @@ describe("Agent Factory - runAgent tool_calls", () => {
     expect(bindToolsMock).not.toHaveBeenCalled();
     expect(result.toolCalls).toBeUndefined();
     expect(result.response).toBe("Tarefa concluída. [TAREFA_CONCLUÍDA]");
+  });
+
+  // BUG 1: numa segunda invocação (loop agêntico), o SystemMessage deve
+  // continuar sendo o primeiro e único; o histórico (AIMessage/ToolMessage)
+  // vem DEPOIS do par [System, Human].
+  it("keeps exactly one system message at index 0 on the second turn (tool-call loop)", async () => {
+    const fakeTool = { name: "create_event" } as never;
+
+    // Turno 1: LLM emite uma tool_call.
+    const turn1 = new AIMessage({
+      content: "Vou acessar a agenda.",
+      tool_calls: [
+        { id: "call_1", name: "create_event", args: { title: "Reunião" } },
+      ],
+    });
+    invokeMock.mockResolvedValueOnce(turn1);
+
+    const r1 = await runAgent(agentDef, {
+      issueContext: issue,
+      tools: [fakeTool],
+    });
+    expect(r1.rawMessage).toBe(turn1);
+
+    // Monta priorMessages exatamente como o orchestrator faz.
+    const priorMessages: BaseMessage[] = [
+      r1.rawMessage!,
+      new ToolMessage({ tool_call_id: "call_1", content: JSON.stringify({ success: true }) }),
+    ];
+
+    // Turno 2: resposta final.
+    const turn2 = new AIMessage({ content: "Agenda criada. [TAREFA_CONCLUÍDA]" });
+    invokeMock.mockResolvedValueOnce(turn2);
+
+    await runAgent(agentDef, {
+      issueContext: issue,
+      tools: [fakeTool],
+      priorMessages,
+    });
+
+    // Segunda chamada ao invoke (índice 1): inspeciona o array de mensagens.
+    expect(invokeMock).toHaveBeenCalledTimes(2);
+    const secondCallMessages = invokeMock.mock.calls[1][0] as BaseMessage[];
+
+    // SystemMessage no índice 0.
+    expect(secondCallMessages[0]._getType()).toBe("system");
+    // Exatamente um SystemMessage.
+    expect(
+      secondCallMessages.filter((m) => m._getType() === "system").length
+    ).toBe(1);
+    // HumanMessage no índice 1 (contexto da issue).
+    expect(secondCallMessages[1]._getType()).toBe("human");
+    // AIMessage/ToolMessage do histórico vêm DEPOIS do índice 1.
+    const aiIdx = secondCallMessages.findIndex((m) => m._getType() === "ai");
+    const toolIdx = secondCallMessages.findIndex((m) => m._getType() === "tool");
+    expect(aiIdx).toBeGreaterThan(1);
+    expect(toolIdx).toBeGreaterThan(1);
   });
 });

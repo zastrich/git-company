@@ -8,6 +8,7 @@ import { getAvailableTasksForAgent, QueuedTask } from "./task-queue";
 import { connectMcpServer, McpConnection, McpToolSchema } from "./mcp-client";
 import { executeMcpToolCall } from "./mcp-executor";
 import { executeCliToolCall, cliToolsToLangChain } from "./cli-executor";
+import { sanitizeToolSchema } from "./schema-sanitizer";
 import { getSecrets, interpolateSecrets } from "../db/secrets";
 import { createAuditLog } from "../db/audit";
 import { prisma } from "../db/client";
@@ -60,8 +61,9 @@ function convertMcpToolsToLangChain(
     return new DynamicStructuredTool({
       name: t.name,
       description: t.description ?? "",
-      // O inputSchema MCP é um JSON Schema — aceito diretamente pela tool.
-      schema: (t.inputSchema ?? { type: "object", properties: {} }) as never,
+      // O inputSchema MCP é um JSON Schema — sanitizado para o subconjunto
+      // seguro (Gemini rejeita $ref/$defs/propertyNames/etc.).
+      schema: sanitizeToolSchema(t.inputSchema, t.name) as never,
       // Placeholder: a execução real acontece via executeMcpToolCall.
       func: async () => "",
     }) as unknown as StructuredToolInterface;

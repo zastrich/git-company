@@ -28,6 +28,7 @@ import { createAuditLog } from "../db/audit";
 import { interpolateSecrets } from "../db/secrets";
 import { projectRoot } from "../runtime-paths";
 import { CliToolConfig } from "../baac/types";
+import { sanitizeToolSchema } from "./schema-sanitizer";
 
 // ── Constantes ──
 /** Prefixo de stdout gravado no details da auditoria (em caracteres). */
@@ -156,7 +157,10 @@ export function cliToolsToLangChain(
         properties[a.param] = { type: "string", description: a.description ?? "" };
         if (a.required) requiredList.push(a.param);
       }
-      const schema = { type: "object", properties, required: requiredList };
+      const schema = sanitizeToolSchema(
+        { type: "object", properties, required: requiredList },
+        cfg.id
+      );
       toolToCli.set(cfg.id, cfg);
       result.push(
         new DynamicStructuredTool({

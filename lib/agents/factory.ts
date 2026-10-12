@@ -142,10 +142,15 @@ REGRAS ABSOLUTAS:
     contextBlock,
   });
 
-  // Prepende mensagens anteriores (histórico da conversa), se houver.
+  // Monta a sequência final da conversa. `formatted` = [SystemMessage,
+  // HumanMessage(context)]; `priorMessages` traz o histórico acumulado pelo
+  // loop agêntico (AIMessage com tool_calls + ToolMessages), SEM system/human.
+  // O SystemMessage DEVE ser o primeiro e único — Gemini e outros provedores
+  // estritos rejeitam com "System message should be the first one" caso o
+  // histórico seja prefixado antes dele. Por isso: [...formatted, ...prior].
   const messages: BaseMessage[] =
     input.priorMessages && input.priorMessages.length > 0
-      ? [...input.priorMessages, ...formatted]
+      ? [...formatted, ...input.priorMessages]
       : formatted;
 
   // Sem ferramentas, llmToUse === llm — caminho preservado 1:1.
