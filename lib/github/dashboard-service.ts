@@ -152,6 +152,22 @@ export interface StageContext {
 
 export interface KanbanColumn { name: string; cards: KanbanCard[]; context?: StageContext }
 
+/** Etapas padrão usadas como fallback quando o workflow local está vazio. */
+export const DEFAULT_WORKFLOW_STAGES = ["Backlog", "Em Progresso", "Revisão", "Ação Manual", "Concluído"];
+
+/**
+ * Resolve a etapa (coluna) de uma issue a partir dos labels e do estado.
+ * Prioriza o label stage::<Nome>; na ausência dele, usa o fallback por estado:
+ * fechada → ÚLTIMA etapa (ex: "Concluído"), aberta → PRIMEIRA etapa (ex: "Backlog").
+ * Os extremos vêm da lista real de etapas (`stages`), não de literais fixos.
+ */
+export function stageForIssue(labels: string[], state: "open" | "closed", stages: string[]): string {
+  const stageLabel = labels.find((l) => l.startsWith(STAGE_LABEL_PREFIX));
+  if (stageLabel) return stageLabel.slice(STAGE_LABEL_PREFIX.length);
+  const cols = stages.length ? stages : DEFAULT_WORKFLOW_STAGES;
+  return state === "closed" ? cols[cols.length - 1] : cols[0];
+}
+
 /**
  * Lê as issues do repo e as organiza em colunas pelo label stage::.
  * columns = etapas esperadas (do workflow local); issues sem stage caem em
@@ -167,8 +183,6 @@ export async function readKanban(ref: RepoRef, columns: string[]): Promise<Kanba
   });
 
   const cols: string[] = columns.length ? columns : ["Backlog", "Em Progresso", "Concluído"];
-  const doneCol = cols[cols.length - 1];
-  const backlogCol = cols[0];
 
   const board: Record<string, KanbanCard[]> = {};
   for (const c of cols) board[c] = [];
@@ -179,11 +193,11 @@ export async function readKanban(ref: RepoRef, columns: string[]): Promise<Kanba
     if ((issue as any).pull_request) continue;
 
     const labels = (issue.labels as any[]).map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean);
-    const stageLabel = labels.find((l) => l.startsWith(STAGE_LABEL_PREFIX));
     const agentLabel = labels.find((l) => l.startsWith(AGENT_LABEL_PREFIX) && l !== AGENT_RUNNING_LABEL);
 
-    let stage = stageLabel ? stageLabel.slice(STAGE_LABEL_PREFIX.length) : "";
-    if (!stage) stage = issue.state === "closed" ? doneCol : backlogCol;
+    // etapa pela convenção de label stage:: (ou fallback por estado) — mesma
+    // regra usada em syncIssuesToProject via stageForIssue.
+    const stage = stageForIssue(labels, issue.state as "open" | "closed", cols);
 
     const card: KanbanCard = {
       number: issue.number,
@@ -213,6 +227,58 @@ export async function readKanban(ref: RepoRef, columns: string[]): Promise<Kanba
 export async function getSavedProjectId(companyId: string): Promise<string | null> {
   const c = await prisma.company.findUnique({ where: { id: companyId }, select: { projectId: true } });
   return c?.projectId ?? null;
+}
+
+/** Extrai o número do Project a partir de uma URL do GitHub (users/orgs) ou de um número. */
+function parseProjectNumber(projectRef: number | string): number {
+  if (typeof projectRef === "number") return projectRef;
+  const trimmed = projectRef.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  // formatos: https://github.com/users/<o>/projects/<n> ou .../orgs/<o>/projects/<n>
+  const m = trimmed.match(/projects\/(\d+)/);
+  if (m) return Number(m[1]);
+  throw new Error(`Project v2 inválido: não foi possível extrair o número de "${projectRef}".`);
+}
+
+/**
+ * Adota um Project V2 já existente (criado fora da plataforma) e o registra na empresa.
+ * Aceita o número do projeto (ex: 7) ou a URL completa
+ * (ex: https://github.com/users/zastrich/projects/7).
+ * Resolve o node id via GraphQL — primeiro como projeto de USUÁRIO (owner `zastrich`),
+ * com fallback para projeto de ORGANIZAÇÃO — persiste em company.projectId e retorna o id.
+ * NÃO empurra as opções de Status aqui (adoção e configuração são compostas na API).
+ */
+export async function adoptProjectV2(ref: RepoRef, projectRef: number | string): Promise<string> {
+  const gql = await gqlClient(ref.token);
+  const n = parseProjectNumber(projectRef);
+
+  // 1. tentar como projeto de usuário
+  let projectId: string | undefined;
+  try {
+    const userData: any = await gql(
+      `query($owner:String!,$n:Int!){ user(login:$owner){ projectV2(number:$n){ id title } } }`,
+      { owner: ref.owner, n }
+    );
+    projectId = userData?.user?.projectV2?.id;
+  } catch { /* owner pode ser organização */ }
+
+  // 2. fallback: projeto de organização
+  if (!projectId) {
+    try {
+      const orgData: any = await gql(
+        `query($owner:String!,$n:Int!){ organization(login:$owner){ projectV2(number:$n){ id title } } }`,
+        { owner: ref.owner, n }
+      );
+      projectId = orgData?.organization?.projectV2?.id;
+    } catch { /* tratado abaixo */ }
+  }
+
+  if (!projectId) {
+    throw new Error(`Project v2 #${n} não encontrado para o owner ${ref.owner}.`);
+  }
+
+  await prisma.company.update({ where: { id: ref.companyId }, data: { projectId } });
+  return projectId;
 }
 
 /**
@@ -260,6 +326,24 @@ export async function createProjectV2(ref: RepoRef, title: string, stages: strin
   return projectId;
 }
 
+export interface StatusOption { name: string; color: string; description: string }
+
+/**
+ * Mapeia as etapas do kanban nas opções do campo single-select "Status" do
+ * Project V2, preservando a ordem. Cores: etapas de conclusão → GREEN,
+ * revisão/ação manual → YELLOW, demais → GRAY. Função pura e reutilizável
+ * (usada tanto por configureProjectStatusAndBoard quanto pela reconciliação
+ * do setupProjectWorkflow), garantindo o MESMO conjunto de opções em qualquer
+ * ponto de entrada.
+ */
+export function stageStatusOptions(stages: string[]): StatusOption[] {
+  return stages.map((name) => ({
+    name,
+    color: /concl|done|final/i.test(name) ? "GREEN" : /manual|revis|review/i.test(name) ? "YELLOW" : "GRAY",
+    description: "",
+  }));
+}
+
 /**
  * Ajusta o campo single-select "Status" do Project V2 para conter exatamente
  * as etapas do kanban, e cria uma view no layout BOARD agrupada por Status.
@@ -283,12 +367,8 @@ export async function configureProjectStatusAndBoard(token: string, projectId: s
   const statusField = fieldsData.node.fields.nodes.find((f: any) => f?.name === "Status");
   if (!statusField) return;
 
-  // definir as opções = etapas (cor cinza por padrão; a etapa "done" verde)
-  const options = stages.map((name) => ({
-    name,
-    color: /concl|done|final/i.test(name) ? "GREEN" : /manual|revis|review/i.test(name) ? "YELLOW" : "GRAY",
-    description: "",
-  }));
+  // definir as opções = etapas (mapeamento compartilhado via stageStatusOptions)
+  const options = stageStatusOptions(stages);
 
   await gql(
     `mutation($fieldId:ID!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){
@@ -559,12 +639,32 @@ export async function setProjectItemStatus(token: string, projectId: string, con
   );
 }
 
+/** Lê as etapas (workflow_stages) salvas para a empresa; fallback para as padrão. */
+async function workflowStagesFor(companyId: string): Promise<string[]> {
+  try {
+    const cfg = await prisma.companyConfig.findUnique({
+      where: { companyId_key: { companyId, key: "workflow_stages" } },
+    });
+    if (cfg?.value) {
+      const parsed = JSON.parse(cfg.value) as { name: string }[];
+      const names = parsed.map((c) => c.name).filter(Boolean);
+      if (names.length) return names;
+    }
+  } catch { /* fallback abaixo */ }
+  return DEFAULT_WORKFLOW_STAGES;
+}
+
 /**
- * Adiciona TODAS as issues do repo ao Project V2 e define o Status de cada uma
- * conforme sua etapa (label stage::), para o board já aparecer organizado.
+ * Adiciona TODAS as issues do repo ao Project V2 e define o Status de cada uma.
+ * Contrato: cada issue é adicionada ao projeto (se ainda não estiver) e seu
+ * campo Status é definido a partir do label stage::<Nome>; na ausência do label,
+ * usa o fallback por estado (fechada → última etapa, aberta → primeira),
+ * conforme stageForIssue. Se a opção de Status não existir no projeto, o
+ * fallback best-effort apenas garante o item no board.
  */
 export async function syncIssuesToProject(ref: RepoRef, projectId: string): Promise<number> {
   const octokit = client(ref.token);
+  const stages = await workflowStagesFor(ref.companyId);
   const issues = await octokit.paginate(octokit.rest.issues.listForRepo, {
     owner: ref.owner, repo: ref.repo, state: "all", per_page: 100,
   });
@@ -573,10 +673,7 @@ export async function syncIssuesToProject(ref: RepoRef, projectId: string): Prom
     if ((issue as any).pull_request) continue;
     if (!issue.node_id) continue;
     const labels = (issue.labels as any[]).map((l) => (typeof l === "string" ? l : l.name)).filter(Boolean);
-    const stageLabel = labels.find((l: string) => l.startsWith(STAGE_LABEL_PREFIX));
-    const stage = stageLabel
-      ? stageLabel.slice(STAGE_LABEL_PREFIX.length)
-      : (issue.state === "closed" ? "Concluído" : "Backlog");
+    const stage = stageForIssue(labels, issue.state as "open" | "closed", stages);
     try {
       // setProjectItemStatus garante o item no projeto e define o Status
       await setProjectItemStatus(ref.token, projectId, issue.node_id, stage);

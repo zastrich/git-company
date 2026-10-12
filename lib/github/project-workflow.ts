@@ -6,6 +6,7 @@ import { prisma } from "../db/client";
 import { graphql } from "@octokit/graphql";
 import { ProjectWorkflow, IssueLifecycle } from "../baac/types";
 import { createAuditLog } from "../db/audit";
+import { configureProjectStatusAndBoard } from "./dashboard-service";
 
 export interface ProjectSetupResult {
   projectId: string;
@@ -17,6 +18,12 @@ export interface ProjectSetupResult {
 /**
  * Creates or retrieves a GitHub Project V2 with custom workflow columns.
  * The columns are implemented as a Single Select field called "Status".
+ *
+ * As opções do campo "Status" passam a ser definidas como EXATAMENTE as colunas
+ * do workflow (sem fuzzy mapping), delegando ao caminho canônico
+ * `configureProjectStatusAndBoard` em `../github/dashboard-service`. Assim, este
+ * ponto de entrada (webhook/BaaC/CLI) produz o MESMO conjunto de opções de Status
+ * que o fluxo do dashboard.
  */
 export async function setupProjectWorkflow(
   companyId: string,
@@ -79,12 +86,22 @@ export async function setupProjectWorkflow(
       } catch { /* view may already exist */ }
     }
 
-    // 4. Find or create the "Status" single-select field
+    // 4. Definir as opções do campo "Status" = EXATAMENTE as colunas do workflow.
+    // Caminho canônico (mutação updateProjectV2Field com singleSelectOptions),
+    // o mesmo usado pelo fluxo do dashboard. Sem fuzzy mapping.
+    await configureProjectStatusAndBoard(
+      company.githubToken,
+      projectId!,
+      config.columns.map((c) => c.name)
+    );
+
+    // 5. Re-ler o campo "Status" para popular statusFieldId/columnOptions no
+    // resultado (consumidos por cli/setup-project.ts ao posicionar as issues).
     const fieldsData: any = await gql(`
       query($projectId: ID!) {
         node(id: $projectId) {
           ... on ProjectV2 {
-            fields(first: 20) {
+            fields(first: 50) {
               nodes {
                 ... on ProjectV2SingleSelectField {
                   id
@@ -101,34 +118,6 @@ export async function setupProjectWorkflow(
     const statusField = fieldsData.node.fields.nodes.find(
       (f: any) => f.name === "Status" && f.options
     );
-
-    // 5. Map our custom columns to existing GitHub status options
-    // GitHub Projects V2 doesn't expose a mutation to add options to single-select fields.
-    // We map our workflow columns to the available status options.
-    const columnMapping: Record<string, string> = {};
-    if (statusField) {
-      const existingOptions = statusField.options.map((o: any) => o.name);
-      for (const col of config.columns) {
-        // Try exact match first
-        const exactMatch = existingOptions.find((o: string) => o === col.name);
-        if (exactMatch) {
-          columnMapping[col.name] = exactMatch;
-          continue;
-        }
-        // Fuzzy mapping for common columns
-        if (col.isDone && existingOptions.includes("Done")) {
-          columnMapping[col.name] = "Done";
-        } else if (col.name.toLowerCase().includes("progress") && existingOptions.includes("In Progress")) {
-          columnMapping[col.name] = "In Progress";
-        } else if (col.name.toLowerCase().includes("backlog") && existingOptions.includes("Todo")) {
-          columnMapping[col.name] = "Todo";
-        } else {
-          // Default: map to Todo for unmatched columns
-          columnMapping[col.name] = existingOptions[0] ?? "Todo";
-        }
-      }
-      console.log(`   ℹ️  Column mapping: ${JSON.stringify(columnMapping)}`);
-    }
 
     await createAuditLog({
       companyId,

@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/db/client";
 import {
-  resolveRepo, readKanban, getSavedProjectId, createProjectV2,
+  resolveRepo, readKanban, getSavedProjectId, createProjectV2, adoptProjectV2,
+  configureProjectStatusAndBoard,
   createIssue, cloneIssue, moveCard, syncIssuesToProject, readStageContexts,
   listMilestones,
   type StageContext, type RelationType,
@@ -131,6 +132,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       const company = await prisma.company.findUnique({ where: { id: ref.companyId } });
       const stages = (await columnsFor(ref.companyId)).map((c) => c.name);
       const projectId = await createProjectV2(ref, `${company?.name ?? slug} — Board`, stages);
+      const synced = await syncIssuesToProject(ref, projectId);
+      return NextResponse.json({ ok: true, projectId, synced }, { status: 201 });
+    }
+
+    if (action === "adopt-project") {
+      // Adota um Project V2 existente (número ou URL), empurra as 5 etapas como
+      // opções de Status + view BOARD, e posiciona as issues conforme o label.
+      const projectRef = body?.project;
+      if (projectRef === undefined || projectRef === null || projectRef === "") {
+        return NextResponse.json({ error: "Informe o número ou a URL do Project existente." }, { status: 400 });
+      }
+      const stages = (await columnsFor(ref.companyId)).map((c) => c.name);
+      const projectId = await adoptProjectV2(ref, projectRef);
+      await configureProjectStatusAndBoard(ref.token, projectId, stages);
       const synced = await syncIssuesToProject(ref, projectId);
       return NextResponse.json({ ok: true, projectId, synced }, { status: 201 });
     }

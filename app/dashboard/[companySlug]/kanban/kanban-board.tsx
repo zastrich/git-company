@@ -121,9 +121,21 @@ export function KanbanBoard({ companySlug }: { companySlug: string }) {
             </button>
           )}
           {!projectId && (
-            <button onClick={() => action({ action: "create-project" }, "create-project")} disabled={busy === "create-project"} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold">
-              {busy === "create-project" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar Project no GitHub
-            </button>
+            <>
+              <button onClick={() => action({ action: "create-project" }, "create-project")} disabled={busy === "create-project"} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold">
+                {busy === "create-project" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar Project no GitHub
+              </button>
+              <button
+                onClick={async () => {
+                  const value = window.prompt("Número ou URL do Project V2 existente (ex: 7 ou https://github.com/users/zastrich/projects/7)");
+                  if (value && value.trim()) await action({ action: "adopt-project", project: value.trim() }, "adopt-project");
+                }}
+                disabled={busy === "adopt-project"}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-sm font-semibold"
+              >
+                {busy === "adopt-project" ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitFork className="w-4 h-4" />} Adotar Project existente
+              </button>
+            </>
           )}
         </div>
       </div>
