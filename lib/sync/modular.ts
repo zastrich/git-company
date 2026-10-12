@@ -12,7 +12,38 @@
 // monolítico (formato antigo), o pull ainda funciona.
 
 import { Octokit } from "@octokit/rest";
-import { BusinessConfig, AgentDefinition } from "../baac/types";
+import { BusinessConfig, AgentDefinition, McpServerConfig, CliToolConfig } from "../baac/types";
+
+/**
+ * Retorna o array apenas quando ele for um array não-vazio; caso contrário,
+ * undefined (para que o campo seja omitido do JSON serializado). Espelha a
+ * semântica omit-when-empty de buildLocalBusinessJson (parseJsonArray).
+ */
+function nonEmptyArray<T>(value: T[] | undefined): T[] | undefined {
+  return Array.isArray(value) && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Monta o objeto do agente para serialização modular, emitindo
+ * mcpServers / cliTools / contextFiles de forma EXPLÍCITA quando não-vazios.
+ * Mesmas formas do serializador inline (buildLocalBusinessJson):
+ *   - mcpServers: array de McpServerConfig
+ *   - cliTools:   array de CliToolConfig
+ *   - contextFiles: array de strings
+ * Campos vazios são omitidos (undefined some do JSON.stringify), preservando
+ * byte-a-byte a saída de agentes sem ferramentas.
+ */
+function serializeAgent(agent: AgentDefinition): AgentDefinition {
+  const mcpServers = nonEmptyArray<McpServerConfig>(agent.mcpServers);
+  const cliTools = nonEmptyArray<CliToolConfig>(agent.cliTools);
+  const contextFiles = nonEmptyArray<string>(agent.contextFiles);
+  return {
+    ...agent,
+    mcpServers,
+    cliTools,
+    contextFiles,
+  };
+}
 
 // ─────────────────────────────────────────────
 // Tipos modulares
@@ -97,7 +128,7 @@ export async function pushModular(
   for (const agent of business.agents) {
     const path = `agents/${agent.agentId}.json`;
     agentRefs.push({ agentId: agent.agentId, path });
-    await putFile(octokit, owner, repo, path, JSON.stringify(agent, null, 2), `Sync: agent ${agent.agentId}`);
+    await putFile(octokit, owner, repo, path, JSON.stringify(serializeAgent(agent), null, 2), `Sync: agent ${agent.agentId}`);
   }
 
   // 2. workflow.json com contexto por etapa

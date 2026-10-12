@@ -42,7 +42,7 @@ vi.mock("../db/audit", () => ({
   createAuditLog: vi.fn().mockResolvedValue({}),
 }));
 
-import { buildLocalBusinessJson, pullFromRemote } from "../sync/org-sync";
+import { buildLocalBusinessJson, pullFromRemote, pushToRemote } from "../sync/org-sync";
 
 // ── Testes de validação simples preservados ──
 describe("Org Sync - Sync Direction Validation", () => {
@@ -211,5 +211,61 @@ describe("Org Sync - round-trip de mcpServers/cliTools/contextFiles/isCeo", () =
     const outroCall = calls.find((c) => c.where.companyId_agentId.agentId === "outro")!;
     expect(ceoCall.update.isCeo).toBe(true);
     expect(outroCall.update.isCeo).toBe(false);
+  });
+
+  it("pushToRemote entrega ao pushModular um BusinessConfig com as ferramentas intactas", async () => {
+    const mcp = [{ id: "notion", name: "Notion", transport: "sse", url: "https://mcp/sse" }];
+    const cli = [
+      { id: "calendar_list_events", name: "Listar", description: "d", command: "node", args: [{ literal: "cal.js" }] },
+      { id: "calendar_create_event", name: "Criar", description: "d", command: "node", args: [] },
+    ];
+    agentFindManyMock.mockResolvedValue([
+      {
+        agentId: "agente-agenda",
+        role: "Agenda",
+        type: "ai",
+        provider: { type: "openai", baseUrl: null },
+        model: "gpt-4o",
+        temperature: 0.2,
+        maxTokens: 4096,
+        context: "ctx",
+        tickIntervalSeconds: 300,
+        labels: "agenda",
+        subordinates: "",
+        githubUsername: "",
+        isCeo: false,
+        mcpServers: "",
+        cliTools: JSON.stringify(cli),
+        contextFiles: "",
+      },
+      {
+        agentId: "agente-notion",
+        role: "Notion",
+        type: "ai",
+        provider: { type: "openai", baseUrl: null },
+        model: "gpt-4o",
+        temperature: 0.2,
+        maxTokens: 4096,
+        context: "ctx",
+        tickIntervalSeconds: 300,
+        labels: "notion",
+        subordinates: "",
+        githubUsername: "",
+        isCeo: false,
+        mcpServers: JSON.stringify(mcp),
+        cliTools: "",
+        contextFiles: "",
+      },
+    ]);
+
+    const result = await pushToRemote("company-1");
+    expect(result.success).toBe(true);
+
+    expect(pushModularMock).toHaveBeenCalledTimes(1);
+    const [, , , business] = pushModularMock.mock.calls[0] as any[];
+    const agenda = business.agents.find((a: any) => a.agentId === "agente-agenda");
+    const notion = business.agents.find((a: any) => a.agentId === "agente-notion");
+    expect(agenda.cliTools).toEqual(cli);
+    expect(notion.mcpServers).toEqual(mcp);
   });
 });
